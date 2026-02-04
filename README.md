@@ -398,6 +398,41 @@ VITE_API_URL=http://localhost:3001
 
 ## 🤝 Integration
 
+### 🦞 OpenClaw / AI Agent Integration
+
+Connect your AI agents (OpenClaw, Claude, GPT, etc.) to Claw Control:
+
+**1. Copy the update script to your workspace:**
+```bash
+cp templates/scripts/update_dashboard.js scripts/
+```
+
+**2. Add to your `AGENTS.md`:**
+```markdown
+## Reporting to Claw Control
+
+When spawned as a sub-agent, update the dashboard:
+
+**Start of Task:**
+\`\`\`bash
+node scripts/update_dashboard.js --agent "Bulma" --status "working" --message "Starting: Deploy frontend"
+\`\`\`
+
+**End of Task:**
+\`\`\`bash
+node scripts/update_dashboard.js --agent "Bulma" --status "idle" --message "Complete: Frontend deployed"
+\`\`\`
+```
+
+**3. Set environment variable:**
+```bash
+export CLAW_CONTROL_URL=https://your-backend.railway.app
+```
+
+📖 **Full guide:** [docs/openclaw-integration.md](docs/openclaw-integration.md)
+
+---
+
 ### MCP (Model Context Protocol)
 
 Claw Control includes an MCP server for native AI agent integration.

@@ -21,6 +21,7 @@
   * [Hooks & Callbacks](api/hooks.md)
 
 * **Integrations**
+  * [OpenClaw / AI Agents](openclaw-integration.md)
   * [Telegram](integrations/telegram.md)
   * [Discord](integrations/discord.md)
   * [WhatsApp](integrations/whatsapp.md)
