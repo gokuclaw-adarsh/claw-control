@@ -12,6 +12,7 @@ const fastify = require('fastify')({ logger: true });
 const cors = require('@fastify/cors');
 const dbAdapter = require('./db-adapter');
 const { loadAgentsConfig, getConfigPath, CONFIG_PATHS } = require('./config-loader');
+const { dispatchWebhook, reloadWebhooks, getWebhooks, SUPPORTED_EVENTS } = require('./webhook');
 
 /**
  * Generates parameterized query placeholder based on database type.
@@ -115,6 +116,7 @@ fastify.post('/api/tasks', async (request, reply) => {
 
   const task = rows[0];
   broadcast('task-created', task);
+  dispatchWebhook('task-created', task);
   return reply.status(201).send(task);
 });
 
@@ -151,6 +153,7 @@ fastify.put('/api/tasks/:id', async (request, reply) => {
 
   const task = rows[0];
   broadcast('task-updated', task);
+  dispatchWebhook('task-updated', task);
   return task;
 });
 
@@ -224,6 +227,7 @@ fastify.post('/api/tasks/:id/progress', async (request, reply) => {
 
   const updatedTask = rows[0];
   broadcast('task-updated', updatedTask);
+  dispatchWebhook('task-updated', updatedTask);
   
   return {
     success: true,
@@ -257,6 +261,7 @@ fastify.post('/api/tasks/:id/complete', async (request, reply) => {
 
   const task = rows[0];
   broadcast('task-updated', task);
+  dispatchWebhook('task-updated', task);
   
   return { success: true, task };
 });
@@ -468,6 +473,18 @@ fastify.put('/api/agents/:id', async (request, reply) => {
     return reply.status(400).send({ success: false, error: validation.error });
   }
 
+  // Get old status before update to detect changes
+  let oldStatus = null;
+  if (status !== undefined) {
+    const { rows: oldAgent } = await dbAdapter.query(
+      `SELECT status FROM agents WHERE id = ${param(1)}`,
+      [id]
+    );
+    if (oldAgent.length > 0) {
+      oldStatus = oldAgent[0].status;
+    }
+  }
+
   const trimmedName = name !== undefined ? name.trim() : undefined;
 
   const { rows } = await dbAdapter.query(
@@ -487,6 +504,16 @@ fastify.put('/api/agents/:id', async (request, reply) => {
 
   const agent = rows[0];
   broadcast('agent-updated', agent);
+  
+  // Fire webhook if status actually changed
+  if (status !== undefined && oldStatus !== null && oldStatus !== agent.status) {
+    dispatchWebhook('agent-status-changed', {
+      agent,
+      previousStatus: oldStatus,
+      newStatus: agent.status
+    });
+  }
+  
   return { success: true, data: agent };
 });
 
@@ -536,17 +563,35 @@ fastify.patch('/api/agents/:id/status', async (request, reply) => {
     });
   }
 
+  // Get old status before update
+  const { rows: oldAgent } = await dbAdapter.query(
+    `SELECT status FROM agents WHERE id = ${param(1)}`,
+    [id]
+  );
+
+  if (oldAgent.length === 0) {
+    return reply.status(404).send({ success: false, error: 'Agent not found' });
+  }
+
+  const oldStatus = oldAgent[0].status;
+
   const { rows } = await dbAdapter.query(
     `UPDATE agents SET status = ${param(1)} WHERE id = ${param(2)} RETURNING *`,
     [status, id]
   );
 
-  if (rows.length === 0) {
-    return reply.status(404).send({ success: false, error: 'Agent not found' });
-  }
-
   const agent = rows[0];
   broadcast('agent-updated', agent);
+  
+  // Fire webhook if status actually changed
+  if (oldStatus !== agent.status) {
+    dispatchWebhook('agent-status-changed', {
+      agent,
+      previousStatus: oldStatus,
+      newStatus: agent.status
+    });
+  }
+  
   return { success: true, data: agent };
 });
 
@@ -634,6 +679,7 @@ fastify.post('/api/messages', async (request, reply) => {
 
   const msg = rows[0];
   broadcast('message-created', msg);
+  dispatchWebhook('message-created', msg);
   return reply.status(201).send(msg);
 });
 
@@ -868,6 +914,41 @@ fastify.get('/api/config/status', async (request, reply) => {
     configPath,
     configFound: !!configPath,
     searchedPaths: CONFIG_PATHS
+  };
+});
+
+// ============ WEBHOOKS API ============
+
+/**
+ * GET /api/webhooks - Get webhook configuration status.
+ * @returns {object} Webhook config with enabled webhooks and supported events
+ */
+fastify.get('/api/webhooks', async (request, reply) => {
+  const webhooks = getWebhooks();
+  
+  return {
+    success: true,
+    webhooksEnabled: webhooks.length,
+    supportedEvents: SUPPORTED_EVENTS,
+    webhooks: webhooks.map(wh => ({
+      url: wh.url,
+      events: wh.events,
+      hasSecret: !!wh.secret
+    }))
+  };
+});
+
+/**
+ * POST /api/webhooks/reload - Reload webhook configuration from disk.
+ * @returns {object} Reload result with updated webhook count
+ */
+fastify.post('/api/webhooks/reload', async (request, reply) => {
+  const webhooks = reloadWebhooks();
+  
+  return {
+    success: true,
+    message: 'Webhook configuration reloaded',
+    webhooksEnabled: webhooks.length
   };
 });
 

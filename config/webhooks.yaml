@@ -1,0 +1,32 @@
+# Webhook Configuration
+# Define webhooks to receive event notifications from Claw Control
+#
+# Supported events:
+#   - task-created: Fired when a new task is created
+#   - task-updated: Fired when a task is updated (status, assignee, etc.)
+#   - agent-status-changed: Fired when an agent's status changes
+#   - message-created: Fired when a new agent message is posted
+#
+# Each webhook can:
+#   - Listen to specific events (or all events with ["*"])
+#   - Include a secret for HMAC signature verification (X-Claw-Signature header)
+#   - Be enabled/disabled individually
+
+webhooks: []
+
+# Example configuration:
+#
+# webhooks:
+#   - url: "https://example.com/webhook"
+#     events: ["task-created", "task-updated"]
+#     secret: "optional-signing-secret"
+#     enabled: true
+#
+#   - url: "https://slack.example.com/incoming-webhook"
+#     events: ["*"]  # All events
+#     enabled: true
+#
+#   - url: "https://internal.example.com/claw-events"
+#     events: ["agent-status-changed", "message-created"]
+#     secret: "hmac-secret-key"
+#     enabled: true
