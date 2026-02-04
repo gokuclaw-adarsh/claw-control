@@ -15,4 +15,4 @@ RUN npm install -g serve
 COPY --from=builder /app/packages/frontend/dist /app/dist
 WORKDIR /app
 EXPOSE 3000
-CMD ["sh", "-c", "serve -s dist -l $PORT"]
+CMD ["sh", "-c", "serve -s dist -p $PORT"]
