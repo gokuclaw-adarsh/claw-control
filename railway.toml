@@ -5,9 +5,3 @@ builder = "nixpacks"
 
 [start]
 cmd = "npx serve -s packages/frontend/dist -l $PORT"
-
-[deploy]
-startCommand = "npx serve -s packages/frontend/dist -l $PORT"
-healthcheckPath = ""
-restartPolicyType = "on_failure"
-restartPolicyMaxRetries = 5
