@@ -544,7 +544,7 @@ npm run dev`}
               </span>
             </div>
             <div className="text-sm text-gray-500 font-mono">
-              Made with 🦞 by Adarsh's OpenClaw team
+              Built with love by the OpenClaw community
             </div>
             <div className="flex items-center gap-4">
               <a
