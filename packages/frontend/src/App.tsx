@@ -2,7 +2,6 @@
  * @fileoverview Main Application Component.
  * 
  * Root component for Claw Control. Provides:
- * - Landing page (default entry point)
  * - Dashboard with responsive layout:
  *   - Header with connection status indicator
  *   - Agents list sidebar (left panel)
@@ -16,9 +15,8 @@
  * @module App
  */
 
-import { useCallback, useState, useEffect } from 'react';
-import { Radio, Wifi, WifiOff, Bot, LayoutGrid, MessageSquare, ArrowLeft } from 'lucide-react';
-import { LandingPage } from './pages/LandingPage';
+import { useCallback, useState } from 'react';
+import { Radio, Wifi, WifiOff, Bot, LayoutGrid, MessageSquare } from 'lucide-react';
 import { AgentsList } from './components/AgentsList';
 import { KanbanBoard } from './components/KanbanBoard';
 import { AgentChat } from './components/AgentChat';
@@ -31,21 +29,11 @@ type MobileView = 'agents' | 'board' | 'chat';
 /**
  * Application header with logo and connection status.
  * @param props.connected - Whether SSE connection is active
- * @param props.onBack - Optional callback to return to landing page
  */
-function Header({ connected, onBack }: { connected: boolean; onBack?: () => void }) {
+function Header({ connected }: { connected: boolean }) {
   return (
     <header className="h-12 sm:h-14 px-3 sm:px-4 border-b border-cyber-green/30 bg-black/50 flex items-center justify-between backdrop-blur-sm">
       <div className="flex items-center gap-2 sm:gap-3">
-        {onBack && (
-          <button
-            onClick={onBack}
-            className="p-1.5 -ml-1 hover:bg-cyber-green/10 rounded-lg transition-colors"
-            title="Back to landing"
-          >
-            <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 text-cyber-green" />
-          </button>
-        )}
         <Radio className="w-4 h-4 sm:w-5 sm:h-5 text-cyber-green" />
         <h1 className="text-sm sm:text-lg font-black italic tracking-widest text-cyber-green uppercase font-display">
           Claw Control
@@ -122,53 +110,16 @@ function MobileNav({ activeView, onViewChange, agentCount, messageCount }: Mobil
   );
 }
 
-/** Application view type */
-type AppView = 'landing' | 'dashboard';
-
 /**
  * Main application component.
  * Orchestrates data fetching, SSE subscriptions, and renders the dashboard layout.
  */
 export default function App() {
-  // Check if we should start on dashboard (e.g., direct link or returning user)
-  const [currentView, setCurrentView] = useState<AppView>(() => {
-    // Check URL hash or localStorage for returning users
-    if (window.location.hash === '#dashboard') return 'dashboard';
-    const savedView = localStorage.getItem('claw-control-view');
-    return savedView === 'dashboard' ? 'dashboard' : 'landing';
-  });
-  
   const [mobileView, setMobileView] = useState<MobileView>('board');
   const { agents, setAgents, loading: agentsLoading } = useAgents();
   const { kanban, loading: tasksLoading, moveTask, setTasks } = useTasks();
   const { messages, loading: messagesLoading, addMessage } = useMessages();
   
-  // Handle view changes
-  const handleEnterDashboard = useCallback(() => {
-    setCurrentView('dashboard');
-    localStorage.setItem('claw-control-view', 'dashboard');
-    window.location.hash = 'dashboard';
-  }, []);
-  
-  const handleBackToLanding = useCallback(() => {
-    setCurrentView('landing');
-    localStorage.removeItem('claw-control-view');
-    window.location.hash = '';
-  }, []);
-  
-  // Handle hash changes for navigation
-  useEffect(() => {
-    const handleHashChange = () => {
-      if (window.location.hash === '#dashboard') {
-        setCurrentView('dashboard');
-      } else if (window.location.hash === '' || window.location.hash === '#') {
-        setCurrentView('landing');
-      }
-    };
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, []);
-
   // SSE event handlers for real-time updates
   const handleAgentUpdate = useCallback((agent: Agent, _action?: 'created' | 'updated') => {
     setAgents(prev => {
@@ -220,15 +171,10 @@ export default function App() {
     moveTask(taskId, newStatus);
   }, [moveTask]);
 
-  // Render landing page
-  if (currentView === 'landing') {
-    return <LandingPage onEnterDashboard={handleEnterDashboard} />;
-  }
-
   // Render dashboard
   return (
     <div className="h-screen flex flex-col bg-cyber-black text-white overflow-hidden crt-overlay">
-      <Header connected={connected} onBack={handleBackToLanding} />
+      <Header connected={connected} />
       
       {/* Desktop Layout (md+) */}
       <main className="flex-1 hidden md:flex overflow-hidden">

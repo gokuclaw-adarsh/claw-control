@@ -147,11 +147,7 @@ function CodeBlock({ code, language = "bash" }: { code: string; language?: strin
   );
 }
 
-interface LandingPageProps {
-  onEnterDashboard: () => void;
-}
-
-export function LandingPage({ onEnterDashboard }: LandingPageProps) {
+export function LandingPage() {
   return (
     <div className="min-h-screen bg-cyber-black text-white overflow-x-hidden">
       {/* Navigation */}
@@ -181,12 +177,12 @@ export function LandingPage({ onEnterDashboard }: LandingPageProps) {
               >
                 <Github className="w-5 h-5 text-gray-400 hover:text-cyber-green" />
               </a>
-              <button
-                onClick={onEnterDashboard}
+              <a
+                href="https://github.com/adarshmishra07/claw-control#quick-start"
                 className="px-4 py-2 bg-cyber-green/10 hover:bg-cyber-green/20 border border-cyber-green/30 rounded-lg font-display text-sm uppercase tracking-wider text-cyber-green transition-all hover:border-cyber-green/50"
               >
-                Dashboard
-              </button>
+                Get Started
+              </a>
             </motion.div>
           </div>
         </div>
@@ -252,15 +248,17 @@ export function LandingPage({ onEnterDashboard }: LandingPageProps) {
               variants={fadeInUp}
               className="flex flex-col sm:flex-row items-center justify-center gap-4"
             >
-              <button
-                onClick={onEnterDashboard}
+              <a
+                href="https://github.com/adarshmishra07/claw-control#quick-start"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="group relative px-8 py-4 bg-cyber-green text-black font-display font-bold uppercase tracking-wider rounded-lg overflow-hidden transition-all hover:shadow-neon-green"
               >
                 <span className="relative z-10 flex items-center gap-2">
-                  Launch Dashboard
+                  Deploy Your Own
                   <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 </span>
-              </button>
+              </a>
               <a
                 href="https://github.com/adarshmishra07/claw-control"
                 target="_blank"
@@ -511,13 +509,15 @@ npm run dev`}
               </p>
 
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <button
-                  onClick={onEnterDashboard}
+                <a
+                  href="https://github.com/adarshmishra07/claw-control#quick-start"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="group px-8 py-4 bg-cyber-green text-black font-display font-bold uppercase tracking-wider rounded-lg transition-all hover:shadow-neon-green flex items-center gap-2"
                 >
-                  Enter Dashboard
+                  Get Started
                   <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                </button>
+                </a>
                 <a
                   href="https://github.com/adarshmishra07/claw-control"
                   target="_blank"
