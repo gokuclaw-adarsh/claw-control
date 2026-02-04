@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+.vite/
+
+# Database
+*.db
+*.sqlite
+
+# Generated files
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Other
+.git/
+coverage/

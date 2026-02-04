@@ -2,9 +2,40 @@
 
 > **Kanban for AI Agents** - Coordinate your AI team with style
 
+[![GitHub stars](https://img.shields.io/github/stars/gokuclaw-adarsh/claw-control?style=flat-square&logo=github)](https://github.com/gokuclaw-adarsh/claw-control/stargazers)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](https://opensource.org/licenses/MIT)
+[![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev/)
+[![Fastify](https://img.shields.io/badge/Fastify-5.x-000000?style=flat-square&logo=fastify&logoColor=white)](https://fastify.dev/)
+![Status](https://img.shields.io/badge/status-alpha-orange?style=flat-square)
+
 Claw Control is a beautiful, real-time mission control dashboard for managing AI agent workflows. Track tasks, monitor agent status, and coordinate your AI team through an intuitive Kanban interface with live updates.
 
-![Claw Control Dashboard](https://img.shields.io/badge/status-alpha-orange) ![License](https://img.shields.io/badge/license-MIT-green)
+---
+
+## 📸 Screenshots
+
+<p align="center">
+  <i>🖼️ Screenshots coming soon! We're polishing the UI.</i>
+</p>
+
+<!-- 
+Uncomment and update when screenshots are ready:
+<p align="center">
+  <img src="docs/images/dashboard.png" alt="Dashboard Overview" width="800">
+  <br>
+  <em>Real-time Kanban board with agent status</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/agent-feed.png" alt="Agent Feed" width="800">
+  <br>
+  <em>Live activity feed from AI agents</em>
+</p>
+-->
+
+---
 
 ## ✨ Features
 
@@ -14,6 +45,59 @@ Claw Control is a beautiful, real-time mission control dashboard for managing AI
 - **🔄 SSE Updates** - Live updates without polling
 - **📱 Mobile Responsive** - Works on any device
 - **🎨 Cyberpunk UI** - Sleek, dark theme with glowing accents
+- **🔌 MCP Integration** - Native Model Context Protocol support
+- **🗄️ Flexible Storage** - SQLite (dev) or PostgreSQL (prod)
+
+---
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         CLIENTS                                  │
+├─────────────┬─────────────┬─────────────┬─────────────────────────┤
+│  Dashboard  │  AI Agents  │  MCP Tools  │   External Webhooks    │
+│  (React)    │  (REST API) │  (stdio)    │   (GitHub, etc.)       │
+└──────┬──────┴──────┬──────┴──────┬──────┴──────────┬──────────────┘
+       │             │             │                 │
+       └─────────────┴──────┬──────┴─────────────────┘
+                            │
+                    ┌───────▼────────┐
+                    │   API Server   │
+                    │   (Fastify)    │
+                    ├────────────────┤
+                    │ • REST API     │
+                    │ • SSE Stream   │
+                    │ • Auth Layer   │
+                    │ • Webhooks     │
+                    └───────┬────────┘
+                            │
+                    ┌───────▼────────┐
+                    │  DB Adapter    │
+                    │  (Abstract)    │
+                    ├────────────────┤
+                    │ SQLite │ Postgres │
+                    └────────────────┘
+
+Data Flow:
+─────────
+1. Agents POST updates → API broadcasts via SSE
+2. Dashboard receives SSE → Updates UI in real-time
+3. Users drag tasks → PUT request → SSE broadcast
+4. MCP tools → Direct DB access for AI integrations
+```
+
+### Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| **Frontend** | React 19, TypeScript, Vite, TailwindCSS |
+| **Backend** | Node.js, Fastify 5, Server-Sent Events |
+| **Database** | SQLite (dev) / PostgreSQL (prod) |
+| **AI Integration** | MCP Server, REST API |
+| **Deployment** | Docker, Railway |
+
+---
 
 ## 🚀 Quick Start
 
@@ -90,6 +174,8 @@ echo "VITE_API_URL=http://localhost:3001" > .env
 npm run dev
 ```
 
+---
+
 ## 📦 Project Structure
 
 ```
@@ -106,19 +192,29 @@ claw-control/
 │       ├── src/
 │       │   ├── server.js      # Main API server
 │       │   ├── db-adapter.js  # Database abstraction (SQLite/Postgres)
-│       │   ├── sqlite-schema.sql  # SQLite schema
+│       │   ├── mcp-server.js  # MCP integration
 │       │   └── migrate.js     # DB migrations
 │       └── package.json
 │
+├── config/                    # Configuration files
+│   └── agents.yaml            # Agent definitions
 ├── docker-compose.yml         # Full stack (PostgreSQL)
 ├── docker-compose.sqlite.yml  # SQLite override
+├── .prettierrc                # Code formatting
+├── CONTRIBUTING.md            # Contribution guide
 ├── .env.example               # Environment template
 └── LICENSE
 ```
 
+---
+
 ## 🔌 API Reference
 
-### Tasks
+Full API documentation is available at `/documentation` when running the server (Swagger UI).
+
+### Quick Reference
+
+#### Tasks
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -128,7 +224,7 @@ claw-control/
 | DELETE | `/api/tasks/:id` | Delete a task |
 | POST | `/api/tasks/:id/progress` | Move task to next status |
 
-### Agents
+#### Agents
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -136,20 +232,22 @@ claw-control/
 | POST | `/api/agents` | Create an agent |
 | PUT | `/api/agents/:id` | Update agent (status, etc.) |
 
-### Messages
+#### Messages
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/messages` | List recent messages |
 | POST | `/api/messages` | Post agent message |
 
-### Real-time Stream
+#### Real-time Stream
 
 ```
 GET /api/stream - Server-Sent Events stream
 ```
 
 Events: `task-created`, `task-updated`, `task-deleted`, `agent-updated`, `message-created`
+
+---
 
 ## 🔐 Authentication
 
@@ -195,18 +293,7 @@ curl -X POST http://localhost:3001/api/tasks \
   -d '{"title": "New task"}'
 ```
 
-### Check Auth Status
-
-```bash
-# Check if auth is enabled
-curl http://localhost:3001/api/auth/status
-
-# Response when disabled:
-# {"enabled":false,"mode":"open","message":"Authentication disabled..."}
-
-# Response when enabled:
-# {"enabled":true,"mode":"protected","message":"API key required for write operations..."}
-```
+---
 
 ## ⚙️ Agent Configuration
 
@@ -241,13 +328,7 @@ agents:
 | `avatar` | ❌ | Emoji or image path (default: "🤖") |
 | `status` | ❌ | Initial status: idle, working, offline (default: "idle") |
 
-### How It Works
-
-1. **On first startup**: If no agents exist in the database, they're seeded from `config/agents.yaml`
-2. **No config file?**: Falls back to default agents
-3. **Docker**: Config is mounted as a volume - edit without rebuilding!
-
-### Reload Config (Hot Reload)
+### Hot Reload
 
 Reload agents from config without restarting:
 
@@ -261,12 +342,7 @@ curl -X POST http://localhost:3001/api/config/reload \
   -d '{"force": true}'
 ```
 
-### Config API
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/config/reload` | Reload agents from YAML |
-| GET | `/api/config/status` | Check config file status |
+---
 
 ## 🎛️ Environment Variables
 
@@ -280,11 +356,8 @@ DATABASE_URL=sqlite:./data/claw-control.db
 DATABASE_URL=postgresql://user:password@localhost:5432/claw_control
 
 PORT=3001
+API_KEY=your-secret-key  # Optional, enables auth
 ```
-
-The database adapter auto-detects the type based on the URL prefix:
-- `sqlite:` → Uses better-sqlite3 (bundled, zero setup)
-- `postgresql://` → Uses pg (requires PostgreSQL server)
 
 ### Frontend
 
@@ -292,11 +365,13 @@ The database adapter auto-detects the type based on the URL prefix:
 VITE_API_URL=http://localhost:3001
 ```
 
+---
+
 ## 🤝 Integration
 
 ### MCP (Model Context Protocol)
 
-Claw Control includes an MCP server for native AI agent integration. Claude and other MCP-compatible agents can interact with Mission Control directly.
+Claw Control includes an MCP server for native AI agent integration.
 
 **Available Tools:**
 - `list_tasks` - Get all tasks (with optional status filter)
@@ -307,8 +382,6 @@ Claw Control includes an MCP server for native AI agent integration. Claude and 
 - `post_message` - Post to agent feed
 
 **MCP Configuration:**
-
-Add to your Claude Desktop config (`claude_desktop_config.json`) or MCP client:
 
 ```json
 {
@@ -324,15 +397,7 @@ Add to your Claude Desktop config (`claude_desktop_config.json`) or MCP client:
 }
 ```
 
-Or run directly:
-```bash
-cd packages/backend
-npm run mcp
-```
-
-### REST API
-
-Claw Control also exposes a simple REST API that any AI agent can use:
+### REST API Integration
 
 ```javascript
 // Update agent status
@@ -351,19 +416,9 @@ await fetch('http://localhost:3001/api/messages', {
     message: 'Starting task: Deploy to production' 
   })
 });
-
-// Create a task
-await fetch('http://localhost:3001/api/tasks', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ 
-    title: 'Implement feature X',
-    description: 'Add the new feature',
-    status: 'todo',
-    agent_id: 1
-  })
-});
 ```
+
+---
 
 ## 🎨 Customization
 
@@ -378,9 +433,22 @@ colors: {
 }
 ```
 
+---
+
+## 🤝 Contributing
+
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details on:
+- Setting up your development environment
+- Our coding standards and style guide
+- The pull request process
+
+---
+
 ## 📄 License
 
 MIT License - see [LICENSE](LICENSE) for details.
+
+---
 
 ## 🙏 Credits
 
@@ -393,4 +461,6 @@ Built with:
 
 ---
 
-Made with 🦞 by the OpenClaw team
+<p align="center">
+  Made with 🦞 by the <a href="https://github.com/gokuclaw-adarsh">OpenClaw</a> team
+</p>
