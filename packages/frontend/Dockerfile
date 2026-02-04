@@ -7,9 +7,11 @@ RUN npm ci
 COPY . .
 RUN npm run build --workspace=@claw-control/frontend
 
-# Production - use http-server (simpler than serve)
+# Production - use http-server with runtime config injection
 FROM node:22-alpine
 RUN npm install -g http-server
 COPY --from=builder /app/packages/frontend/dist /app
+COPY packages/frontend/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 WORKDIR /app
-CMD ["sh", "-c", "http-server -p $PORT -c-1 --spa"]
+CMD ["/app/entrypoint.sh"]

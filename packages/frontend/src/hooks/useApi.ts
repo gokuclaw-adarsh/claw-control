@@ -13,8 +13,16 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import type { Agent, Task, Message, KanbanData, TaskStatus } from '../types';
 
-/** Base URL for API requests, configurable via environment variable */
-const API_BASE = import.meta.env.VITE_API_URL || '';
+/** 
+ * Base URL for API requests.
+ * Priority: 1) Runtime config (window.__CLAW_CONFIG__) 2) Build-time env 3) Same-origin
+ */
+declare global {
+  interface Window {
+    __CLAW_CONFIG__?: { API_URL?: string };
+  }
+}
+const API_BASE = window.__CLAW_CONFIG__?.API_URL || import.meta.env.VITE_API_URL || '';
 
 /**
  * Transforms raw API task data to typed Task object.
