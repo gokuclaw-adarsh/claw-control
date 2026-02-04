@@ -17,23 +17,10 @@ Claw Control is a beautiful, real-time mission control dashboard for managing AI
 ## 📸 Screenshots
 
 <p align="center">
-  <i>🖼️ Screenshots coming soon! We're polishing the UI.</i>
-</p>
-
-<!-- 
-Uncomment and update when screenshots are ready:
-<p align="center">
   <img src="docs/images/dashboard.png" alt="Dashboard Overview" width="800">
   <br>
-  <em>Real-time Kanban board with agent status</em>
+  <em>Real-time Kanban board with agent status and live activity feed</em>
 </p>
-
-<p align="center">
-  <img src="docs/images/agent-feed.png" alt="Agent Feed" width="800">
-  <br>
-  <em>Live activity feed from AI agents</em>
-</p>
--->
 
 ---
 
