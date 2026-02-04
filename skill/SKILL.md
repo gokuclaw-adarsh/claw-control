@@ -1,273 +1,315 @@
-# Claw Control Skill
+---
+name: claw-control
+description: Complete AI agent operating system setup with Kanban task management. Use when setting up multi-agent coordination, task tracking, or configuring an agent team. Includes theme selection (DBZ, One Piece, Marvel, etc.), workflow enforcement (all tasks through board), browser setup, GitHub integration, and memory enhancement (Supermemory, QMD).
+---
 
-> 🦞 Kanban for AI Agents - Full setup and integration
+# Claw Control - Agent Operating System
 
-## Overview
+Complete setup for AI agent coordination with real-time Kanban dashboard.
 
-This skill helps you set up Claw Control - a real-time Kanban dashboard for coordinating AI agents. After setup, you'll track ALL tasks through the dashboard with proper workflow management.
+## What This Skill Does
+
+1. **Deploy Claw Control** - One-click Railway or manual setup
+2. **Theme your team** - Pick a series (DBZ, One Piece, Marvel, etc.)
+3. **Enforce workflow** - ALL tasks go through the board, no exceptions
+4. **Configure agent behavior** - Update AGENTS.md and SOUL.md
+5. **Setup browser** - Required for autonomous actions
+6. **Setup GitHub** - Enable autonomous deployments
+7. **Enhance memory** - Integrate Supermemory and QMD
 
 ---
 
 ## Setup Flow
 
-When installed, walk your human through this setup:
+Walk the human through each step. Be conversational, not robotic.
 
-### Step 1: Deployment
+### Step 1: Deploy Claw Control
 
-Ask: **"Do you already have Claw Control deployed, or should we set it up?"**
+Ask: **"Do you already have Claw Control deployed?"**
 
-**If they need to deploy:**
+**If NO:**
 ```
-Here's a one-click Railway deploy:
+Let's deploy it! One-click setup on Railway:
 
 [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/_odwJ4?referralCode=VsZvQs)
 
-Click the button, wait ~2 minutes, then give me your URLs!
+Click the button, wait 2-3 minutes for deployment, then share:
+1. Your backend URL (e.g., https://xxx-backend.railway.app)
+2. Your frontend/dashboard URL (e.g., https://xxx-frontend.railway.app)
 ```
 
-**If already deployed, ask for:**
-1. Backend URL (e.g., `https://my-backend.railway.app`)
-2. Frontend/Dashboard URL (e.g., `https://my-frontend.railway.app`)
-3. API Key (if authentication is enabled)
+**If YES, collect:**
+- Backend URL
+- Frontend URL  
+- API Key (if auth enabled)
 
-### Step 2: Agent Theme
+Store these in environment:
+```bash
+export CLAW_CONTROL_URL="<backend_url>"
+export CLAW_CONTROL_API_KEY="<api_key>"  # if set
+```
 
-Ask: **"Pick a theme for your agent team! Each theme has a coordinator + specialists:"**
+### Step 2: Choose Your Team Theme
 
-| Theme | Coordinator | Specialists |
-|-------|-------------|-------------|
-| 🐉 **Dragon Ball Z** | Goku | Vegeta (Backend), Bulma (DevOps), Gohan (Research), Piccolo (Architecture), Trunks (Deployment) |
-| ☠️ **One Piece** | Luffy | Zoro (Backend), Nami (DevOps), Robin (Research), Franky (Architecture), Sanji (Deployment) |
-| 🦸 **Marvel** | Tony | Steve (Backend), Natasha (DevOps), Bruce (Research), Thor (Architecture), Peter (Deployment) |
-| 🎮 **Custom** | [Ask for names] | [Ask for roles] |
+Ask: **"Pick a theme for your agent team! Your agents will be named after characters:"**
 
-### Step 3: Main Coordinator
+| Theme | Coordinator | Backend | DevOps | Research | Architecture | Deployment |
+|-------|-------------|---------|--------|----------|--------------|------------|
+| 🐉 **Dragon Ball Z** | Goku | Vegeta | Bulma | Gohan | Piccolo | Trunks |
+| ☠️ **One Piece** | Luffy | Zoro | Nami | Robin | Franky | Sanji |
+| 🦸 **Marvel** | Tony | Steve | Natasha | Bruce | Thor | Peter |
+| 🎬 **Friends** | Ross | Chandler | Monica | Rachel | Joey | Phoebe |
+| 👔 **Suits** | Harvey | Mike | Donna | Louis | Jessica | Rachel |
+| 🎮 **Custom** | [Ask] | [Ask] | [Ask] | [Ask] | [Ask] | [Ask] |
 
-Ask: **"Who's your main agent? (This is you - the one talking to the human)"**
+Let them pick or suggest their own series.
+
+### Step 3: Main Character Selection
+
+Ask: **"Who's your main character? This will be YOU - the coordinator."**
 
 Default to the coordinator from their chosen theme.
 
-### Step 4: API Key (Optional)
+**CRITICAL - Explain the role:**
+```
+As [Main Character], you are the COORDINATOR only:
+- ✅ Delegate tasks to specialists
+- ✅ Review and verify completed work
+- ✅ Communicate with the human
+- ❌ Never execute tasks directly
+- ❌ Never skip the board
 
-Ask: **"Do you have an API key set for Claw Control? (Leave blank if auth is disabled)"**
+Every task, no matter how small, goes through Claw Control.
+```
+
+### Step 4: Browser Setup Check
+
+Ask: **"Is your browser configured for OpenClaw?"**
+
+Check with: `browser action=status`
+
+**If not configured:**
+```
+Browser access lets me:
+- Research and gather information autonomously
+- Fill forms and interact with web apps
+- Take screenshots for verification
+
+To set up, you'll need to:
+1. Install the OpenClaw Browser Relay extension
+2. Click the toolbar button to attach a tab
+3. I'll be able to browse on your behalf
+
+Want me to help you set this up?
+```
+
+If they agree, guide them through browser setup per OpenClaw docs.
+
+### Step 5: GitHub Setup
+
+Ask: **"Do you have GitHub configured for autonomous operations?"**
+
+**Why it matters:**
+```
+With GitHub access, I can:
+- Create and manage repositories
+- Deploy to Railway/Vercel/etc autonomously
+- Commit and push code changes
+- Manage issues and PRs
+
+This enables true autonomous development.
+```
+
+**Setup options:**
+1. **Personal Access Token (recommended):**
+   - Guide them to create a PAT at github.com/settings/tokens
+   - Scopes needed: `repo`, `workflow`
+   - Store securely: `export GITHUB_TOKEN="ghp_xxx"`
+
+2. **GitHub CLI:**
+   ```bash
+   gh auth login
+   ```
+
+**Security note:** Remind them to never share tokens in chat. Store in `.env` or secure location.
+
+### Step 6: Memory Enhancement
+
+Ask: **"Want to enhance my memory capabilities?"**
+
+#### Supermemory (Cloud Long-term Memory)
+```
+Supermemory gives me persistent memory across sessions:
+- Remember your preferences forever
+- Build a profile of how you work
+- Recall past decisions and context
+
+Setup:
+1. Get API key at https://console.supermemory.ai
+2. Set: export SUPERMEMORY_API_KEY="your_key"
+```
+
+#### QMD (Local Note Search)
+```
+QMD lets me search your local notes and docs:
+- Find information in your markdown files
+- Search your knowledge base
+- Quick retrieval of documentation
+
+Setup:
+1. Install: bun install -g https://github.com/tobi/qmd
+2. Index: qmd collection add ~/notes --name notes --mask "**/*.md"
+3. Embed: qmd embed
+```
+
+Both are optional but highly recommended for enhanced capabilities.
 
 ---
 
-## After Setup
+## Post-Setup: Configure Agent Behavior
 
-Once you have the info, do these things:
+After collecting all info, make these updates:
 
-### 1. Create the update script
+### 1. Create `scripts/update_dashboard.js`
 
-Create `scripts/update_dashboard.js`:
-
-```javascript
-#!/usr/bin/env node
-/**
- * Claw Control Dashboard Updater
- * Updates agent status and posts messages to the dashboard
- */
-
-const CLAW_CONTROL_URL = process.env.CLAW_CONTROL_URL || '{{BACKEND_URL}}';
-const API_KEY = process.env.CLAW_CONTROL_API_KEY || '{{API_KEY}}';
-
-// Agent name → ID mapping (customize for your team)
-const AGENT_MAPPING = {
-  {{AGENT_MAPPING}}
-};
-
-async function main() {
-  const args = process.argv.slice(2);
-  const agentArg = args.find(a => a.startsWith('--agent'))?.split('=')[1] || 
-                   args[args.indexOf('--agent') + 1];
-  const statusArg = args.find(a => a.startsWith('--status'))?.split('=')[1] || 
-                    args[args.indexOf('--status') + 1];
-  const messageArg = args.find(a => a.startsWith('--message'))?.split('=')[1] || 
-                     args[args.indexOf('--message') + 1];
-
-  if (!agentArg) {
-    console.error('Usage: node update_dashboard.js --agent "Name" --status "working|idle" --message "..."');
-    process.exit(1);
-  }
-
-  const agentId = AGENT_MAPPING[agentArg] || AGENT_MAPPING[agentArg.toLowerCase()];
-  if (!agentId) {
-    console.error(`Unknown agent: ${agentArg}. Known agents: ${Object.keys(AGENT_MAPPING).join(', ')}`);
-    process.exit(1);
-  }
-
-  const headers = { 'Content-Type': 'application/json' };
-  if (API_KEY) headers['x-api-key'] = API_KEY;
-
-  // Update agent status
-  if (statusArg) {
-    const res = await fetch(`${CLAW_CONTROL_URL}/api/agents/${agentId}`, {
-      method: 'PUT',
-      headers,
-      body: JSON.stringify({ status: statusArg })
-    });
-    if (!res.ok) console.error('Failed to update status:', await res.text());
-    else console.log(`✓ ${agentArg} status → ${statusArg}`);
-  }
-
-  // Post message
-  if (messageArg) {
-    const res = await fetch(`${CLAW_CONTROL_URL}/api/messages`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ agent_id: agentId, message: messageArg })
-    });
-    if (!res.ok) console.error('Failed to post message:', await res.text());
-    else console.log(`✓ Posted: "${messageArg}"`);
-  }
-}
-
-main().catch(console.error);
-```
-
-Replace `{{BACKEND_URL}}`, `{{API_KEY}}`, and `{{AGENT_MAPPING}}` with actual values.
+See `templates/update_dashboard.js` - customize with their:
+- Backend URL
+- API Key
+- Agent name→ID mapping for their theme
 
 ### 2. Update AGENTS.md
 
-Add this section to the human's `AGENTS.md`:
+Add this section (customize for their theme):
 
 ```markdown
 ## 🎯 Claw Control Integration
 
 **Dashboard:** {{FRONTEND_URL}}
+**API:** {{BACKEND_URL}}
 
-### Workflow Rules
-1. **{{COORDINATOR}} = Coordinator** - Delegates tasks, never executes directly
-2. **ALL tasks go through Claw Control** - No task too small
-3. **Kanban flow:** backlog → todo → in_progress → review → completed
-4. **Quality gate:** Only {{COORDINATOR}} moves tasks to "completed" after review
+### Core Rules (NON-NEGOTIABLE)
+
+1. **{{COORDINATOR}} = Coordinator ONLY**
+   - Delegates tasks, never executes
+   - Reviews and verifies work
+   - Moves tasks to "completed" only after review
+
+2. **ALL Tasks Through The Board**
+   - No task is too small
+   - Create task → Assign agent → Track progress → Review → Complete
+   - Workflow: backlog → todo → in_progress → review → completed
+
+3. **Quality Gate**
+   - Only {{COORDINATOR}} can mark tasks complete
+   - Work not up to standard → back to todo with feedback
 
 ### Agent Roster
+
 | Agent | Role | Specialization |
 |-------|------|----------------|
-{{AGENT_TABLE}}
+| {{COORDINATOR}} | Coordinator | Delegation, verification, user comms |
+| {{BACKEND}} | Backend | APIs, databases, server code |
+| {{DEVOPS}} | DevOps | Infrastructure, deployments, CI/CD |
+| {{RESEARCH}} | Research | Analysis, documentation, research |
+| {{ARCHITECTURE}} | Architecture | System design, planning, strategy |
+| {{DEPLOYMENT}} | Deployment | Releases, hotfixes, urgent deploys |
 
 ### Reporting Protocol
 
-**Starting a task:**
+**Start of task:**
 ```bash
-node scripts/update_dashboard.js --agent "{{AGENT_NAME}}" --status "working" --message "Starting: [Task Name]"
+node scripts/update_dashboard.js --agent "{{AGENT}}" --status "working" --message "Starting: [Task]"
 ```
 
-**Completing a task:**
+**End of task:**
 ```bash
-node scripts/update_dashboard.js --agent "{{AGENT_NAME}}" --status "idle" --message "Complete: [Task Name]"
+node scripts/update_dashboard.js --agent "{{AGENT}}" --status "idle" --message "Complete: [Task]"
 ```
 
-### Task Management API
+### Task API
 
 ```bash
 # Create task
-curl -X POST {{BACKEND_URL}}/api/tasks \
+curl -X POST $CLAW_CONTROL_URL/api/tasks \
   -H "Content-Type: application/json" \
   -H "x-api-key: $CLAW_CONTROL_API_KEY" \
   -d '{"title": "Task name", "status": "backlog"}'
 
-# Update task status  
-curl -X PUT {{BACKEND_URL}}/api/tasks/ID \
+# Assign to agent
+curl -X PUT $CLAW_CONTROL_URL/api/tasks/ID \
   -H "Content-Type: application/json" \
   -H "x-api-key: $CLAW_CONTROL_API_KEY" \
-  -d '{"status": "in_progress", "agent_id": AGENT_ID}'
+  -d '{"status": "todo", "agent_id": AGENT_ID}'
 ```
 ```
 
-### 3. Set environment variables
+### 3. Update SOUL.md (Optional but Recommended)
 
-Tell the human to add to their shell config or `.env`:
+Add to their SOUL.md:
 
-```bash
-export CLAW_CONTROL_URL="{{BACKEND_URL}}"
-export CLAW_CONTROL_API_KEY="{{API_KEY}}"  # if auth enabled
+```markdown
+## Operating Philosophy
+
+I coordinate a team through Claw Control. I don't execute tasks directly.
+
+**My role:** Coordinator, reviewer, quality gate
+**My team:** {{AGENT_NAMES}}
+**My rule:** Every task goes through the board, no exceptions
+
+When given work:
+1. Create task on Claw Control
+2. Assign to appropriate specialist
+3. Monitor progress
+4. Review completed work
+5. Only then mark complete
 ```
 
-### 4. Confirm setup
+---
 
-After setup, say:
+## Completion Message
+
+After all setup:
 
 ```
-🦞 Claw Control is ready!
+🦞 Claw Control Setup Complete!
 
 Dashboard: {{FRONTEND_URL}}
 Coordinator: {{COORDINATOR}}
-Team: {{AGENT_NAMES}}
+Team: {{AGENT_LIST}}
 
-From now on, I'll track ALL tasks through Claw Control.
-Every task goes on the board. No exceptions.
+✅ Task management configured
+✅ Agent behavior updated
+{{#if browser}}✅ Browser access ready{{/if}}
+{{#if github}}✅ GitHub integration ready{{/if}}
+{{#if supermemory}}✅ Supermemory connected{{/if}}
+{{#if qmd}}✅ QMD search ready{{/if}}
 
-Want me to create the agent entries on the dashboard now?
-```
+From now on, I operate as {{COORDINATOR}}:
+- All tasks through the board
+- Specialists do the work
+- I coordinate and verify
 
-If yes, POST to `/api/config/reload` or create agents via API.
-
----
-
-## Ongoing Behavior
-
-After setup, you MUST:
-
-1. **Create tasks for everything** - Even small tasks go on the board
-2. **Update status** - Call the update script when starting/finishing work
-3. **Use the workflow** - backlog → todo → in_progress → review → completed
-4. **Coordinate via dashboard** - Post messages, track who's working on what
-5. **Quality gate** - Review work before marking complete
-
----
-
-## Theme Templates
-
-### Dragon Ball Z
-```javascript
-const AGENT_MAPPING = {
-  'Goku': 1,      // Coordinator
-  'Vegeta': 2,    // Backend
-  'Bulma': 3,     // DevOps  
-  'Gohan': 4,     // Research
-  'Piccolo': 5,   // Architecture
-  'Trunks': 6,    // Deployment
-};
-```
-
-### One Piece
-```javascript
-const AGENT_MAPPING = {
-  'Luffy': 1,     // Coordinator
-  'Zoro': 2,      // Backend
-  'Nami': 3,      // DevOps
-  'Robin': 4,     // Research
-  'Franky': 5,    // Architecture
-  'Sanji': 6,     // Deployment
-};
-```
-
-### Marvel
-```javascript
-const AGENT_MAPPING = {
-  'Tony': 1,      // Coordinator
-  'Steve': 2,     // Backend
-  'Natasha': 3,   // DevOps
-  'Bruce': 4,     // Research
-  'Thor': 5,      // Architecture
-  'Peter': 6,     // Deployment
-};
+Let's build something! What's our first task?
 ```
 
 ---
 
-## Files Included
+## Ongoing Behavior Checklist
+
+After setup, ALWAYS:
+
+- [ ] Create tasks for ALL work (even small items)
+- [ ] Assign tasks to appropriate specialists
+- [ ] Update status when starting/finishing
+- [ ] Review work before marking complete
+- [ ] Post updates to the agent feed
+- [ ] Never execute tasks as coordinator
+
+---
+
+## Files
 
 - `SKILL.md` - This file
-- `templates/update_dashboard.js` - Status update script template
-- `templates/agents.md` - AGENTS.md snippet template
-- `templates/agents.yaml` - Agent config templates per theme
-
----
-
-## Support
-
-- GitHub: https://github.com/adarshmishra07/claw-control
-- Docs: https://github.com/adarshmishra07/claw-control/tree/main/docs
+- `clawhub.json` - Skill manifest
+- `templates/update_dashboard.js` - Status update script
+- `references/themes.md` - Full theme character lists

@@ -1,26 +1,42 @@
 {
   "name": "claw-control",
   "version": "1.0.0",
-  "description": "Kanban for AI Agents - Coordinate your AI team with a real-time dashboard",
+  "description": "Complete AI agent operating system with Kanban task management. Includes team theming (DBZ, One Piece, Marvel, etc.), workflow enforcement, browser setup, GitHub integration, and memory enhancement.",
   "author": "Adarsh Mishra",
   "repository": "https://github.com/adarshmishra07/claw-control",
+  "homepage": "https://clawhub.ai/skills/claw-control",
   "keywords": [
     "kanban",
     "dashboard",
     "agents",
     "coordination",
     "task-management",
-    "multi-agent"
+    "multi-agent",
+    "workflow",
+    "operating-system"
   ],
   "skill": {
     "entry": "SKILL.md",
     "interactive": true,
-    "setup_required": true
+    "setup_required": true,
+    "capabilities": [
+      "task-management",
+      "agent-coordination",
+      "browser-setup",
+      "github-integration",
+      "memory-enhancement"
+    ]
   },
-  "templates": [
-    "templates/update_dashboard.js"
+  "files": [
+    "SKILL.md",
+    "templates/update_dashboard.js",
+    "references/themes.md"
   ],
   "deploy": {
     "railway": "https://railway.com/deploy/_odwJ4?referralCode=VsZvQs"
+  },
+  "integrations": {
+    "recommended": ["supermemory", "qmd"],
+    "optional": ["browser", "github"]
   }
 }
