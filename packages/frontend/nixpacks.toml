@@ -1,5 +1,8 @@
-# Nixpacks config for frontend service
-# Builds the Vite app and serves static files in production
+# Nixpacks config for frontend service (monorepo)
+# Install from root (where package-lock.json lives), then build frontend
+
+[phases.install]
+cmds = ["cd ../.. && npm ci"]
 
 [phases.build]
 cmds = ["npm run build"]
