@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Wifi, WifiOff, Bot, LayoutGrid, MessageSquare } from 'lucide-react';
+import { Wifi, WifiOff, Bot, LayoutGrid, MessageSquare, PanelRightOpen } from 'lucide-react';
 import { AgentsList } from './components/AgentsList';
 import { KanbanBoard } from './components/KanbanBoard';
 import { AgentChat } from './components/AgentChat';
@@ -99,6 +99,7 @@ function MobileNav({ activeView, onViewChange, agentCount, messageCount }: Mobil
 
 export default function App() {
   const [mobileView, setMobileView] = useState<MobileView>('board');
+  const [feedCollapsed, setFeedCollapsed] = useState(false);
   const { agents, setAgents, loading: agentsLoading } = useAgents();
   const { kanban, loading: tasksLoading, moveTask, setTasks } = useTasks();
   const { messages, loading: messagesLoading, addMessage } = useMessages();
@@ -175,9 +176,34 @@ export default function App() {
           />
         </section>
 
-        {/* Right Panel - Agent Chat */}
-        <aside className="w-80 lg:w-96 border-l border-white/5 bg-claw-surface/50 flex-shrink-0 overflow-hidden">
-          <AgentChat messages={messages} loading={messagesLoading} />
+        {/* Right Panel - Agent Chat (Collapsible) */}
+        <aside className={`border-l border-white/5 bg-claw-surface/50 flex-shrink-0 overflow-hidden transition-all duration-300 ${
+          feedCollapsed ? 'w-12' : 'w-80 lg:w-96'
+        }`}>
+          {feedCollapsed ? (
+            <div className="h-full flex flex-col items-center py-4">
+              <button
+                onClick={() => setFeedCollapsed(false)}
+                className="w-8 h-8 rounded-lg bg-accent-secondary/10 border border-accent-secondary/20 flex items-center justify-center hover:bg-accent-secondary/20 transition-colors"
+                title="Expand Agent Feed"
+              >
+                <PanelRightOpen className="w-4 h-4 text-accent-secondary" />
+              </button>
+              <div className="mt-3 flex flex-col items-center gap-2">
+                <MessageSquare className="w-4 h-4 text-accent-muted" />
+                <span className="text-[10px] font-mono text-accent-secondary bg-accent-secondary/10 px-1.5 py-0.5 rounded">
+                  {messages.length}
+                </span>
+              </div>
+              <div className="flex-1 flex items-center">
+                <span className="text-[10px] text-accent-muted font-medium tracking-wider uppercase" style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}>
+                  Agent Feed
+                </span>
+              </div>
+            </div>
+          ) : (
+            <AgentChat messages={messages} loading={messagesLoading} onCollapse={() => setFeedCollapsed(true)} />
+          )}
         </aside>
       </main>
 

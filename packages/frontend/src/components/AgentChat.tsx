@@ -1,10 +1,11 @@
 import { useEffect, useRef } from 'react';
-import { MessageSquare, Bot } from 'lucide-react';
+import { MessageSquare, Bot, PanelRightClose } from 'lucide-react';
 import type { Message } from '../types';
 
 interface AgentChatProps {
   messages: Message[];
   loading?: boolean;
+  onCollapse?: () => void;
 }
 
 function formatTimestamp(timestamp: string): string {
@@ -92,7 +93,7 @@ function MessageSkeleton() {
   );
 }
 
-export function AgentChat({ messages, loading }: AgentChatProps) {
+export function AgentChat({ messages, loading, onCollapse }: AgentChatProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -144,9 +145,20 @@ export function AgentChat({ messages, loading }: AgentChatProps) {
               <p className="text-[10px] text-accent-muted">Live updates</p>
             </div>
           </div>
-          <span className="text-xs font-mono text-accent-secondary bg-accent-secondary/10 px-2 py-1 rounded-md">
-            {messages.length}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-mono text-accent-secondary bg-accent-secondary/10 px-2 py-1 rounded-md">
+              {messages.length}
+            </span>
+            {onCollapse && (
+              <button
+                onClick={onCollapse}
+                className="w-8 h-8 rounded-lg hover:bg-white/5 flex items-center justify-center transition-colors"
+                title="Collapse Agent Feed"
+              >
+                <PanelRightClose className="w-4 h-4 text-accent-muted hover:text-white" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
       
