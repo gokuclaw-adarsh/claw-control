@@ -1,16 +1,13 @@
 # Railway deployment configuration for Claw Control
-# This enables one-click deployment from Railway's template marketplace
 
 [build]
 builder = "nixpacks"
 
-# Let Nixpacks auto-detect Vite SPA and use Caddy
-# For monorepo, specify the output directory
-[build.env]
-NIXPACKS_SPA_OUT_DIR = "packages/frontend/dist"
+[start]
+cmd = "npx serve -s packages/frontend/dist -l $PORT"
 
 [deploy]
-healthcheckPath = "/"
-healthcheckTimeout = 300
+startCommand = "npx serve -s packages/frontend/dist -l $PORT"
+healthcheckPath = ""
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 5

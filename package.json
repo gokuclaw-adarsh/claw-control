@@ -31,5 +31,8 @@
     "task-management"
   ],
   "author": "OpenClaw Team",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "serve": "^14.2.5"
+  }
 }
