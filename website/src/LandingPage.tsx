@@ -118,11 +118,11 @@ function CodeBlock({ code, language = "bash" }: { code: string; language?: strin
 
   return (
     <div className="terminal rounded-xl overflow-hidden">
-      <div className="terminal-header px-4 py-2 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-[#FF5F56]" />
-          <div className="w-3 h-3 rounded-full bg-[#FFBD2E]" />
-          <div className="w-3 h-3 rounded-full bg-[#27CA3F]" />
+      <div className="terminal-header px-3 sm:px-4 py-2 flex items-center justify-between">
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-[#FF5F56]" />
+          <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-[#FFBD2E]" />
+          <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-[#27CA3F]" />
         </div>
         <span className="text-xs font-mono text-gray-500">{language}</span>
         <button
@@ -137,8 +137,8 @@ function CodeBlock({ code, language = "bash" }: { code: string; language?: strin
           )}
         </button>
       </div>
-      <pre className="p-4 overflow-x-auto">
-        <code className="text-sm font-mono text-[#FF6B6B]">{code}</code>
+      <pre className="p-3 sm:p-4 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-700">
+        <code className="text-xs sm:text-sm font-mono text-[#FF6B6B] whitespace-pre">{code}</code>
       </pre>
     </div>
   );
@@ -455,37 +455,37 @@ export function LandingPage({ onEnterDashboard }: LandingPageProps) {
             whileInView="visible"
             viewport={{ once: true }}
             variants={stagger}
-            className="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto"
+            className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 max-w-5xl mx-auto"
           >
             {/* Option 1: One-Click Deploy */}
             <motion.div
               variants={fadeInUp}
-              className="feature-card group relative p-6 rounded-2xl"
+              className="feature-card group relative p-4 sm:p-6 rounded-2xl overflow-hidden"
             >
-              <div className="absolute top-4 right-4">
+              <div className="absolute top-3 right-3 sm:top-4 sm:right-4">
                 <span className="px-2 py-1 text-xs font-mono bg-[#FF6B6B]/20 text-[#FF6B6B] rounded-full">
                   Fastest
                 </span>
               </div>
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#FF6B6B]/20 to-[#EF4444]/10 flex items-center justify-center">
-                  <Rocket className="w-6 h-6 text-[#FF6B6B]" />
+                <div className="w-10 h-10 sm:w-12 sm:h-12 flex-shrink-0 rounded-xl bg-gradient-to-br from-[#FF6B6B]/20 to-[#EF4444]/10 flex items-center justify-center">
+                  <Rocket className="w-5 h-5 sm:w-6 sm:h-6 text-[#FF6B6B]" />
                 </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-white">One-Click Deploy</h3>
-                  <p className="text-sm text-gray-500">Deploy in 2 minutes, no config needed</p>
+                <div className="min-w-0">
+                  <h3 className="text-base sm:text-lg font-semibold text-white">One-Click Deploy</h3>
+                  <p className="text-xs sm:text-sm text-gray-500 break-words">Deploy in 2 minutes, no config needed</p>
                 </div>
               </div>
-              <p className="text-gray-400 text-sm mb-6">
+              <p className="text-gray-400 text-sm mb-6 break-words">
                 The easiest way to get started. Click the button below and Railway handles everything for you.
               </p>
               <a
                 href="https://railway.com/deploy/_odwJ4?referralCode=VsZvQs"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn-primary w-full py-3 rounded-xl font-semibold flex items-center justify-center gap-2"
+                className="btn-primary w-full py-3 rounded-xl text-sm sm:text-base font-semibold flex items-center justify-center gap-2 whitespace-nowrap"
               >
-                <Rocket className="w-5 h-5" />
+                <Rocket className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
                 Deploy on Railway
               </a>
             </motion.div>
@@ -493,22 +493,22 @@ export function LandingPage({ onEnterDashboard }: LandingPageProps) {
             {/* Option 2: Docker Compose */}
             <motion.div
               variants={fadeInUp}
-              className="feature-card group relative p-6 rounded-2xl"
+              className="feature-card group relative p-4 sm:p-6 rounded-2xl overflow-hidden"
             >
-              <div className="absolute top-4 right-4">
+              <div className="absolute top-3 right-3 sm:top-4 sm:right-4">
                 <span className="px-2 py-1 text-xs font-mono bg-blue-500/20 text-blue-400 rounded-full">
                   Recommended
                 </span>
               </div>
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-600/10 flex items-center justify-center">
-                  <svg className="w-6 h-6 text-blue-400" viewBox="0 0 24 24" fill="currentColor">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 flex-shrink-0 rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-600/10 flex items-center justify-center">
+                  <svg className="w-5 h-5 sm:w-6 sm:h-6 text-blue-400" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M13.983 11.078h2.119a.186.186 0 00.186-.185V9.006a.186.186 0 00-.186-.186h-2.119a.185.185 0 00-.185.185v1.888c0 .102.083.185.185.185m-2.954-5.43h2.118a.186.186 0 00.186-.186V3.574a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.888c0 .102.082.185.185.186m0 2.716h2.118a.187.187 0 00.186-.186V6.29a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.887c0 .102.082.185.185.186m-2.93 0h2.12a.186.186 0 00.184-.186V6.29a.185.185 0 00-.185-.185H8.1a.185.185 0 00-.185.185v1.887c0 .102.083.185.185.186m-2.964 0h2.119a.186.186 0 00.185-.186V6.29a.185.185 0 00-.185-.185H5.136a.186.186 0 00-.186.185v1.887c0 .102.084.185.186.186m5.893 2.715h2.118a.186.186 0 00.186-.185V9.006a.186.186 0 00-.186-.186h-2.118a.185.185 0 00-.185.185v1.888c0 .102.082.185.185.185m-2.93 0h2.12a.185.185 0 00.184-.185V9.006a.185.185 0 00-.184-.186h-2.12a.185.185 0 00-.184.185v1.888c0 .102.083.185.185.185m-2.964 0h2.119a.185.185 0 00.185-.185V9.006a.185.185 0 00-.185-.186h-2.12a.186.186 0 00-.185.186v1.887c0 .102.084.185.186.185m-2.92 0h2.12a.185.185 0 00.184-.185V9.006a.185.185 0 00-.184-.186h-2.12a.185.185 0 00-.184.185v1.888c0 .102.082.185.185.185M23.763 9.89c-.065-.051-.672-.51-1.954-.51-.338 0-.676.03-1.01.087-.248-1.7-1.653-2.53-1.716-2.566l-.344-.199-.226.327c-.284.438-.49.922-.612 1.43-.23.97-.09 1.882.403 2.661-.595.332-1.55.413-1.744.42H.751a.751.751 0 00-.75.748 11.376 11.376 0 00.692 4.062c.545 1.428 1.355 2.48 2.41 3.124 1.18.723 3.1 1.137 5.275 1.137.983 0 1.978-.085 2.955-.253a12.3 12.3 0 003.18-1.028 9.922 9.922 0 002.188-1.518c1.33-1.282 2.122-2.799 2.725-4.087.083 0 .167.003.251.003 1.552 0 2.51-.625 3.04-1.15a3.166 3.166 0 00.768-1.086l.1-.26z"/>
                   </svg>
                 </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-white">Docker Compose</h3>
-                  <p className="text-sm text-gray-500">Self-hosted with full control</p>
+                <div className="min-w-0">
+                  <h3 className="text-base sm:text-lg font-semibold text-white">Docker Compose</h3>
+                  <p className="text-xs sm:text-sm text-gray-500 break-words">Self-hosted with full control</p>
                 </div>
               </div>
               <CodeBlock
@@ -522,20 +522,20 @@ docker compose up`}
             {/* Option 3: npm/Manual */}
             <motion.div
               variants={fadeInUp}
-              className="feature-card group relative p-6 rounded-2xl"
+              className="feature-card group relative p-4 sm:p-6 rounded-2xl overflow-hidden"
             >
-              <div className="absolute top-4 right-4">
+              <div className="absolute top-3 right-3 sm:top-4 sm:right-4">
                 <span className="px-2 py-1 text-xs font-mono bg-green-500/20 text-green-400 rounded-full">
                   Development
                 </span>
               </div>
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500/20 to-green-600/10 flex items-center justify-center">
-                  <Terminal className="w-6 h-6 text-green-400" />
+                <div className="w-10 h-10 sm:w-12 sm:h-12 flex-shrink-0 rounded-xl bg-gradient-to-br from-green-500/20 to-green-600/10 flex items-center justify-center">
+                  <Terminal className="w-5 h-5 sm:w-6 sm:h-6 text-green-400" />
                 </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-white">npm / Manual</h3>
-                  <p className="text-sm text-gray-500">For local development</p>
+                <div className="min-w-0">
+                  <h3 className="text-base sm:text-lg font-semibold text-white">npm / Manual</h3>
+                  <p className="text-xs sm:text-sm text-gray-500 break-words">For local development</p>
                 </div>
               </div>
               <CodeBlock
@@ -549,32 +549,32 @@ npm install && npm run dev`}
             {/* Option 4: AI Automation */}
             <motion.div
               variants={fadeInUp}
-              className="feature-card group relative p-6 rounded-2xl"
+              className="feature-card group relative p-4 sm:p-6 rounded-2xl overflow-hidden"
             >
-              <div className="absolute top-4 right-4">
+              <div className="absolute top-3 right-3 sm:top-4 sm:right-4">
                 <span className="px-2 py-1 text-xs font-mono bg-purple-500/20 text-purple-400 rounded-full">
                   AI-Powered
                 </span>
               </div>
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500/20 to-purple-600/10 flex items-center justify-center">
-                  <Sparkles className="w-6 h-6 text-purple-400" />
+                <div className="w-10 h-10 sm:w-12 sm:h-12 flex-shrink-0 rounded-xl bg-gradient-to-br from-purple-500/20 to-purple-600/10 flex items-center justify-center">
+                  <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-purple-400" />
                 </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-white">Full Automation with AI</h3>
-                  <p className="text-sm text-gray-500">Let your AI agent deploy it for you</p>
+                <div className="min-w-0">
+                  <h3 className="text-base sm:text-lg font-semibold text-white">Full Automation with AI</h3>
+                  <p className="text-xs sm:text-sm text-gray-500 break-words">Let your AI agent deploy it for you</p>
                 </div>
               </div>
-              <p className="text-gray-400 text-sm mb-6">
+              <p className="text-gray-400 text-sm mb-6 break-words">
                 Use the Claw Control skill on ClawHub to have your AI agent handle the entire deployment automatically.
               </p>
               <a
                 href="https://clawhub.openclaw.ai/skills/claw-control"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn-secondary w-full py-3 rounded-xl font-semibold flex items-center justify-center gap-2"
+                className="btn-secondary w-full py-3 rounded-xl text-sm sm:text-base font-semibold flex items-center justify-center gap-2 whitespace-nowrap"
               >
-                <Bot className="w-5 h-5" />
+                <Bot className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
                 View on ClawHub
               </a>
             </motion.div>
