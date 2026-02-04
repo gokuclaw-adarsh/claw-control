@@ -263,53 +263,212 @@ fastify.post('/api/tasks/:id/complete', async (request, reply) => {
 
 // ============ AGENTS API ============
 
+/** @type {string[]} Valid agent status values */
+const VALID_AGENT_STATUSES = ['idle', 'working', 'error', 'offline'];
+
 /**
- * GET /api/agents - Retrieve all agents.
- * @returns {Array<object>} Array of agent objects
+ * Validates agent input data.
+ * @param {object} data - Agent data to validate
+ * @param {boolean} [isUpdate=false] - Whether this is an update operation
+ * @returns {{ valid: boolean, error?: string }} Validation result
+ */
+function validateAgentInput(data, isUpdate = false) {
+  const { name, status } = data;
+  
+  // Name validation (required for create, optional for update)
+  if (!isUpdate && !name) {
+    return { valid: false, error: 'Name is required' };
+  }
+  
+  if (name !== undefined) {
+    if (typeof name !== 'string' || name.trim().length === 0) {
+      return { valid: false, error: 'Name must be a non-empty string' };
+    }
+    if (name.length > 100) {
+      return { valid: false, error: 'Name must be 100 characters or less' };
+    }
+  }
+  
+  // Status validation
+  if (status !== undefined && !VALID_AGENT_STATUSES.includes(status)) {
+    return { valid: false, error: `Status must be one of: ${VALID_AGENT_STATUSES.join(', ')}` };
+  }
+  
+  return { valid: true };
+}
+
+/**
+ * @openapi
+ * /api/agents:
+ *   get:
+ *     summary: List all agents
+ *     tags: [Agents]
+ *     responses:
+ *       200:
+ *         description: List of all agents
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Agent'
  */
 fastify.get('/api/agents', async (request, reply) => {
   const { rows } = await dbAdapter.query('SELECT * FROM agents ORDER BY created_at');
-  return rows;
+  return { success: true, data: rows };
 });
 
 /**
- * POST /api/agents - Create a new agent.
- * @param {object} request.body - Agent data
- * @param {string} request.body.name - Agent name (required)
- * @param {string} [request.body.description] - Agent description
- * @param {string} [request.body.role='Agent'] - Agent role
- * @param {string} [request.body.status='idle'] - Initial status
- * @returns {object} Created agent object
+ * @openapi
+ * /api/agents/{id}:
+ *   get:
+ *     summary: Get a single agent by ID
+ *     tags: [Agents]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Agent ID
+ *     responses:
+ *       200:
+ *         description: Agent details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   $ref: '#/components/schemas/Agent'
+ *       404:
+ *         description: Agent not found
+ */
+fastify.get('/api/agents/:id', async (request, reply) => {
+  const { id } = request.params;
+
+  const { rows } = await dbAdapter.query(
+    `SELECT * FROM agents WHERE id = ${param(1)}`,
+    [id]
+  );
+
+  if (rows.length === 0) {
+    return reply.status(404).send({ success: false, error: 'Agent not found' });
+  }
+
+  return { success: true, data: rows[0] };
+});
+
+/**
+ * @openapi
+ * /api/agents:
+ *   post:
+ *     summary: Create a new agent
+ *     tags: [Agents]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name]
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 maxLength: 100
+ *                 description: Agent name (required, max 100 chars)
+ *               description:
+ *                 type: string
+ *                 description: Agent description
+ *               role:
+ *                 type: string
+ *                 default: Agent
+ *                 description: Agent role
+ *               status:
+ *                 type: string
+ *                 enum: [idle, working, error, offline]
+ *                 default: idle
+ *                 description: Agent status
+ *     responses:
+ *       201:
+ *         description: Agent created successfully
+ *       400:
+ *         description: Invalid input
  */
 fastify.post('/api/agents', async (request, reply) => {
   const { name, description, role = 'Agent', status = 'idle' } = request.body;
 
-  if (!name) {
-    return reply.status(400).send({ error: 'Name is required' });
+  const validation = validateAgentInput({ name, status });
+  if (!validation.valid) {
+    return reply.status(400).send({ success: false, error: validation.error });
   }
 
   const { rows } = await dbAdapter.query(
     `INSERT INTO agents (name, description, role, status) 
      VALUES (${param(1)}, ${param(2)}, ${param(3)}, ${param(4)}) 
      RETURNING *`,
-    [name, description || null, role, status]
+    [name.trim(), description || null, role, status]
   );
 
   const agent = rows[0];
   broadcast('agent-created', agent);
-  return reply.status(201).send(agent);
+  return reply.status(201).send({ success: true, data: agent });
 });
 
 /**
- * PUT /api/agents/:id - Update an existing agent.
- * @param {object} request.params - URL parameters
- * @param {string} request.params.id - Agent ID
- * @param {object} request.body - Fields to update
- * @returns {object} Updated agent object
+ * @openapi
+ * /api/agents/{id}:
+ *   put:
+ *     summary: Update an existing agent
+ *     tags: [Agents]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 maxLength: 100
+ *               description:
+ *                 type: string
+ *               role:
+ *                 type: string
+ *               status:
+ *                 type: string
+ *                 enum: [idle, working, error, offline]
+ *     responses:
+ *       200:
+ *         description: Agent updated successfully
+ *       400:
+ *         description: Invalid input
+ *       404:
+ *         description: Agent not found
  */
 fastify.put('/api/agents/:id', async (request, reply) => {
   const { id } = request.params;
   const { name, description, role, status } = request.body;
+
+  const validation = validateAgentInput({ name, status }, true);
+  if (!validation.valid) {
+    return reply.status(400).send({ success: false, error: validation.error });
+  }
+
+  const trimmedName = name !== undefined ? name.trim() : undefined;
 
   const { rows } = await dbAdapter.query(
     `UPDATE agents 
@@ -319,16 +478,110 @@ fastify.put('/api/agents/:id', async (request, reply) => {
          status = COALESCE(${param(4)}, status)
      WHERE id = ${param(5)}
      RETURNING *`,
-    [name, description, role, status, id]
+    [trimmedName, description, role, status, id]
   );
 
   if (rows.length === 0) {
-    return reply.status(404).send({ error: 'Agent not found' });
+    return reply.status(404).send({ success: false, error: 'Agent not found' });
   }
 
   const agent = rows[0];
   broadcast('agent-updated', agent);
-  return agent;
+  return { success: true, data: agent };
+});
+
+/**
+ * @openapi
+ * /api/agents/{id}/status:
+ *   patch:
+ *     summary: Quick status update for an agent
+ *     tags: [Agents]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [status]
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [idle, working, error, offline]
+ *     responses:
+ *       200:
+ *         description: Status updated successfully
+ *       400:
+ *         description: Invalid status value
+ *       404:
+ *         description: Agent not found
+ */
+fastify.patch('/api/agents/:id/status', async (request, reply) => {
+  const { id } = request.params;
+  const { status } = request.body;
+
+  if (!status) {
+    return reply.status(400).send({ success: false, error: 'Status is required' });
+  }
+
+  if (!VALID_AGENT_STATUSES.includes(status)) {
+    return reply.status(400).send({ 
+      success: false, 
+      error: `Status must be one of: ${VALID_AGENT_STATUSES.join(', ')}` 
+    });
+  }
+
+  const { rows } = await dbAdapter.query(
+    `UPDATE agents SET status = ${param(1)} WHERE id = ${param(2)} RETURNING *`,
+    [status, id]
+  );
+
+  if (rows.length === 0) {
+    return reply.status(404).send({ success: false, error: 'Agent not found' });
+  }
+
+  const agent = rows[0];
+  broadcast('agent-updated', agent);
+  return { success: true, data: agent };
+});
+
+/**
+ * @openapi
+ * /api/agents/{id}:
+ *   delete:
+ *     summary: Delete an agent
+ *     tags: [Agents]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Agent deleted successfully
+ *       404:
+ *         description: Agent not found
+ */
+fastify.delete('/api/agents/:id', async (request, reply) => {
+  const { id } = request.params;
+
+  const { rows } = await dbAdapter.query(
+    `DELETE FROM agents WHERE id = ${param(1)} RETURNING *`,
+    [id]
+  );
+
+  if (rows.length === 0) {
+    return reply.status(404).send({ success: false, error: 'Agent not found' });
+  }
+
+  broadcast('agent-deleted', { id: parseInt(id) });
+  return { success: true, data: { deleted: rows[0] } };
 });
 
 // ============ MESSAGES API ============
