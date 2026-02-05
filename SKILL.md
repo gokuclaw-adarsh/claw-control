@@ -47,293 +47,65 @@ Walk the human through each step. Be friendly and conversational - this is a set
 
 ### Step 1: Deploy Claw Control
 
-Ask: **"Let's get Claw Control running! How do you want to deploy?"**
+**First, check browser status:** `browser action=status`
 
-**Present these options (recommend A for most users):**
-
-🅰️ **One-Click Deploy** ⭐ RECOMMENDED
-   Click a link, wait 3 min, done!
-   
-🅱️ **I Deploy For You** 
-   Give me a Railway token, I handle the rest
-   
-🅲 **Full Automation**
-   Give me GitHub + Railway tokens, I fork & deploy
-
-🅳 **Browser OAuth** ⚠️ Requires browser setup first!
-   I use your browser to sign in everywhere via GitHub
-   
-*Most users should pick Option A - it's the fastest way to get started!*
+Then present:
 
 ---
 
-#### 🅰️ Option A: One-Click Deploy ⭐ RECOMMENDED
+🦞 **Let's get Claw Control running!**
 
-*Best for: Everyone! Fastest path to a working dashboard.*
+**One-click deploy:**
+👉 [railway.app/deploy/claw-control](https://railway.app/deploy/claw-control?referralCode=VsZvQs)
 
-**Deploy URL (copy this exactly):**
-https://railway.app/deploy/claw-control?referralCode=VsZvQs
-
-```
-This is the fastest way - just click and wait!
-
-[Deploy to Railway](https://railway.app/deploy/claw-control?referralCode=VsZvQs)
-```
-
-**Walk them through what happens:**
-
-1. **Click the button** → Railway opens with the deployment template
-2. **Sign in** → Railway will ask you to log in (GitHub works great!)
-3. **Configure variables** → You can set these now or later:
-   - `API_KEY` - Optional auth key for your API
-   - `NEXT_PUBLIC_API_URL` - Will auto-fill after backend deploys
-4. **Click "Deploy"** → Railway starts building both services
-5. **Wait 2-3 minutes** → Grab a coffee ☕
-
-**What they'll see:**
-- Two services spinning up: `backend` and `frontend`
-- Build logs scrolling by (totally normal!)
-- Green checkmarks when each service is healthy
-
-**After deployment:**
-```
-Great! Backend is live 🎉
-
-Now I need two URLs from your Railway dashboard:
-1. Backend URL (click backend service → Settings → Domains)
-   Example: https://claw-control-backend-production.up.railway.app
-   
-2. Frontend URL (click frontend service → Settings → Domains)
-   Example: https://claw-control-frontend-production.up.railway.app
-
-Share both with me and we'll continue!
-```
+**Or self-host:**
+📦 [github.com/adarshmishra07/claw-control](https://github.com/adarshmishra07/claw-control)
 
 ---
 
-#### 🅱️ Option B: I Deploy For You (Railway Token)
+**Already deployed?** Share your backend URL + API key (if set).
 
-*Best for: Hands-off setup where I handle the deployment*
+**Want me to deploy for you?**
 
-```
-I can deploy everything for you! I just need a Railway API token.
+*[If browser available:]*
+> Just say "deploy for me" - I'll handle everything!
 
-Here's how to get one:
-1. Go to railway.app/account/tokens
-2. Click "Create Token"
-3. Name it something like "OpenClaw Deploy"
-4. Copy the token and share it with me (it starts with your-token-...)
+*[If no browser:]*
+> I need either:
+> - 🌐 **Browser access** → [Setup guide](https://docs.openclaw.ai/tools/browser)
+> - 🔑 **Or a token** (GitHub OR Railway):
+>   - GitHub: github.com/settings/tokens (scopes: repo, workflow)
+>   - Railway: railway.app/account/tokens
 
-Don't worry - I'll only use this to create your Claw Control project.
-```
+---
 
-**What I'll do with the token:**
+#### Token Deployment Logic (Internal Reference)
 
-1. **Create a new project** for Claw Control
-2. **Deploy the backend service** with all required settings
-3. **Deploy the frontend service** connected to your backend
-4. **Set up environment variables** automatically
-5. **Generate public domains** so you can access everything
+**If user provides Railway token:**
+- Deploy directly via Railway GraphQL API
+- Create project, services, configure env vars, generate domains
 
-**Railway GraphQL API calls I'll make:**
+**If user provides GitHub token:**
+1. Check if browser available and user logged into Railway
+2. If yes → Use browser to complete OAuth + deploy
+3. If no → Guide user to sign up on Railway with GitHub, then deploy
 
+**Railway GraphQL deployment flow:**
 ```graphql
-# 1. Create Project
-mutation {
-  projectCreate(input: { name: "claw-control" }) {
-    id
-  }
-}
+# Create project
+mutation { projectCreate(input: { name: "claw-control" }) { id } }
 
-# 2. Create Backend Service
-mutation {
-  serviceCreate(input: {
-    projectId: "$PROJECT_ID"
-    name: "backend"
-    source: { repo: "yourusername/claw-control" }
-  }) {
-    id
-  }
-}
+# Create service from repo
+mutation { serviceCreate(input: { projectId: "$ID", name: "backend", source: { repo: "adarshmishra07/claw-control" } }) { id } }
 
-# 3. Set Environment Variables
-mutation {
-  variableUpsert(input: {
-    projectId: "$PROJECT_ID"
-    serviceId: "$BACKEND_SERVICE_ID"
-    name: "NODE_ENV"
-    value: "production"
-  })
-}
-
-# 4. Create Domain
-mutation {
-  domainCreate(input: {
-    serviceId: "$BACKEND_SERVICE_ID"
-  }) {
-    domain
-  }
-}
-
-# 5. Repeat for Frontend with NEXT_PUBLIC_API_URL pointed to backend
+# Generate domain
+mutation { domainCreate(input: { serviceId: "$ID" }) { domain } }
 ```
 
-**After I finish:**
-```
-Awesome, deployment complete! 🚀
-
-Your Claw Control is live:
-- Dashboard: https://your-frontend.railway.app
-- API: https://your-backend.railway.app
-
-Let's continue with the setup!
-```
-
----
-
-#### 🅲 Option C: Full Automation (GitHub + Railway Token)
-
-*Best for: API-level automation without browser*
-
-```
-I'll handle the deployment via APIs:
-- Fork the repo to your GitHub
-- Create and configure the Railway project  
-- Connect everything together
-- Deploy it all automatically
-
-I need two things:
-
-1. **GitHub Personal Access Token**
-   - Go to github.com/settings/tokens
-   - Click "Generate new token (classic)"
-   - Select scopes: `repo`, `workflow`
-   - Copy the token (starts with ghp_...)
-
-2. **Railway API Token**
-   - Go to railway.app/account/tokens
-   - Create a new token
-   - Copy it
-
-Share both and I'll take it from here!
-```
-
----
-
-#### 🅳 Option D: Browser OAuth (Advanced)
-
-*Best for: Power users who want full automation - but requires browser setup first!*
-
-⚠️ **Important:** This option requires browser access to be configured. If you haven't set that up yet, I'll help you with it first, then we can do full OAuth automation.
-
-```
-With browser access + GitHub login, I can handle a lot automatically:
-
-- Navigate and click through OAuth flows
-- Create accounts via "Sign in with GitHub"
-- Grab API keys from dashboards
-
-What I need FIRST:
-1. Browser extension installed and attached (see Step 4)
-2. You're logged into GitHub in that browser tab
-
-Once browser is ready, just say "Deploy Claw Control for me"
-```
-
-**🚀 What I'll do automatically via browser:**
-
-1. **Navigate to Railway** → Click "Sign in with GitHub" → OAuth auto-approves
-2. **Create new project** → Select template or import from GitHub
-3. **Fork claw-control repo** to your GitHub (if needed)
-4. **Deploy both services** → Configure environment variables
-5. **Copy the deployment URLs** directly from Railway dashboard
-6. **Navigate to Railway tokens page** → Create and copy API token for future use
-7. **Configure everything** → Store URLs and keys in TOOLS.md
-
-**The browser automation flow:**
-
-```
-Browser Actions:
-1. browser.navigate("https://railway.app")
-2. browser.click("Sign in with GitHub")  
-3. [OAuth auto-completes - user already logged in!]
-4. browser.click("New Project")
-5. browser.click("Deploy from GitHub repo")
-6. browser.type("claw-control")
-7. browser.click("Deploy Now")
-8. [Wait for deployment...]
-9. browser.navigate(project_settings)
-10. browser.copy(backend_url)
-11. browser.copy(frontend_url)
-12. Done! 🎉
-```
-
-**What Option D gives you (once browser is set up):**
-- 🔑 Auto-grab tokens from dashboards
-- 🖱️ I click through OAuth flows for you
-- 📋 I read URLs directly from the pages
-- 🎯 More automation than token-based options
-
-**After everything's deployed:**
-```
-🎉 Browser OAuth Setup Complete!
-
-Here's what I did:
-- Created Railway account (via GitHub OAuth)
-- Forked: github.com/yourusername/claw-control
-- Deployed Dashboard: https://your-frontend.railway.app  
-- Deployed API: https://your-backend.railway.app
-- Retrieved and stored API tokens
-
-Note: This required browser setup first, but now 
-future deployments will be even smoother!
-```
-
----
-
-**Quick Comparison:**
-
-🅰️ **One-Click** - 5 min, no tokens, just click a link ⭐ Start here!
-🅱️ **Railway Token** - 3 min, 1 token to copy
-🅲 **Both Tokens** - 2 min, GitHub + Railway tokens  
-🅳 **Browser OAuth** - Requires browser setup first, then automated
-
----
-
-**What I'll do (Option C - API route):**
-
-1. **Fork the claw-control repo** to your GitHub account
-2. **Create a new Railway project** linked to your fork
-3. **Deploy backend service** with auto-deploys from main branch
-4. **Deploy frontend service** with proper backend URL
-5. **Configure all environment variables**
-6. **Set up custom domains** (optional)
-
-**The magic behind the scenes:**
-
-```bash
-# Fork repo via GitHub API
-curl -X POST https://api.github.com/repos/openclaw/claw-control/forks \
-  -H "Authorization: token $GITHUB_TOKEN"
-
-# Then Railway GraphQL to create project connected to your fork
-# (Same as Option B, but with source pointing to your fork)
-```
-
-**Why Option C rocks:**
-- You own the code (it's in your GitHub)
-- Auto-deploys when you push changes
-- Easy to customize later
-- Full control via API tokens
-
----
-
-**Already have Claw Control deployed?**
-
-If they already have it running, collect:
-- Backend URL
-- Frontend URL  
-- API Key (if auth enabled)
+**After deployment, collect:**
+- Backend URL (e.g., https://claw-control-backend-xxx.up.railway.app)
+- Frontend URL (e.g., https://claw-control-frontend-xxx.up.railway.app)
+- API Key (if they set one)
 
 ---
 
