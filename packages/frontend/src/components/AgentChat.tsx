@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { MessageSquare, Bot, PanelRightClose } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import type { Message } from '../types';
 
 interface AgentChatProps {
@@ -69,10 +70,19 @@ function ChatMessage({ message }: { message: Message }) {
         </span>
       </div>
       
-      {/* Message Content */}
-      <p className="text-sm text-gray-300 pl-[38px] break-words leading-relaxed">
-        {message.content}
-      </p>
+      {/* Message Content - Markdown Rendered */}
+      <div className="text-sm text-gray-300 pl-[38px] break-words leading-relaxed prose prose-invert prose-sm max-w-none
+        prose-p:my-1 prose-p:leading-relaxed
+        prose-strong:text-white prose-strong:font-semibold
+        prose-em:text-gray-400
+        prose-code:text-accent-secondary prose-code:bg-accent-secondary/10 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-xs prose-code:font-mono prose-code:before:content-none prose-code:after:content-none
+        prose-pre:bg-claw-surface prose-pre:border prose-pre:border-white/10 prose-pre:rounded-lg prose-pre:p-3 prose-pre:my-2
+        prose-a:text-accent-secondary prose-a:no-underline hover:prose-a:underline
+        prose-ul:my-1 prose-ul:pl-4 prose-li:my-0.5
+        prose-headings:text-white prose-headings:font-semibold prose-h1:text-base prose-h2:text-sm prose-h3:text-sm
+      ">
+        <ReactMarkdown>{message.content}</ReactMarkdown>
+      </div>
     </div>
   );
 }
