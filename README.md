@@ -6,7 +6,7 @@
 
 [![Skills.sh](https://img.shields.io/badge/npx_skills_add-Install-coral?style=flat-square&logo=npm)](https://skills.sh)
 [![GitHub stars](https://img.shields.io/github/stars/adarshmishra07/claw-control?style=flat-square&logo=github)](https://github.com/adarshmishra07/claw-control/stargazers)
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/claw-control?referralCode=VsZvQs&utm_medium=integration&utm_source=template&utm_campaign=generic)
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/deploy/claw-control?referralCode=VsZvQs&utm_medium=integration&utm_source=template&utm_campaign=generic)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 ![Status](https://img.shields.io/badge/status-alpha-orange?style=flat-square)
 
@@ -53,7 +53,7 @@ Your agent will walk you through:
 
 ### Railway (One-Click)
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/claw-control?referralCode=VsZvQs&utm_medium=integration&utm_source=template&utm_campaign=generic)
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/deploy/claw-control?referralCode=VsZvQs&utm_medium=integration&utm_source=template&utm_campaign=generic)
 
 **Click → Wait 2 mins → Done!** Railway auto-provisions PostgreSQL, backend, and frontend.
 

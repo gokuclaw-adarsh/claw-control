@@ -58,12 +58,12 @@ Present three options based on their comfort level:
 *Best for: Getting started quickly with minimal setup*
 
 **Deploy URL (copy this exactly):**
-https://railway.com/deploy/claw-control?referralCode=VsZvQs
+https://railway.app/deploy/claw-control?referralCode=VsZvQs
 
 ```
 This is the fastest way - just click and wait!
 
-[Deploy to Railway](https://railway.com/deploy/claw-control?referralCode=VsZvQs)
+[Deploy to Railway](https://railway.app/deploy/claw-control?referralCode=VsZvQs)
 ```
 
 **Walk them through what happens:**
