@@ -4,9 +4,9 @@
 
 🌐 **[www.clawcontrol.xyz](https://www.clawcontrol.xyz)** — Live Demo & Documentation
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/_odwJ4?referralCode=VsZvQs)
-[![Skills.sh](https://img.shields.io/badge/skills.sh-Install-coral?style=flat-square)](https://skills.sh)
+[![Skills.sh](https://img.shields.io/badge/npx_skills_add-Install-coral?style=flat-square&logo=npm)](https://skills.sh)
 [![GitHub stars](https://img.shields.io/github/stars/adarshmishra07/claw-control?style=flat-square&logo=github)](https://github.com/adarshmishra07/claw-control/stargazers)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/_odwJ4?referralCode=VsZvQs)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 ![Status](https://img.shields.io/badge/status-alpha-orange?style=flat-square)
 
@@ -22,17 +22,34 @@ Claw Control is a beautiful, real-time mission control dashboard for managing AI
 
 ## 🚀 Quick Start
 
-### Option 1: One-Click Deploy (Recommended)
+### Install the Skill (Recommended)
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/_odwJ4?referralCode=VsZvQs)
+```bash
+npx skills add adarshmishra07/claw-control
+```
 
-**Click → Wait 2 mins → Done!** 🎉
+Your AI agent will guide you through everything:
+- 🚀 **Deployment** - Railway one-click, Docker, or manual setup
+- 🎨 **Theme Selection** - DBZ, One Piece, Marvel, and more
+- ⚙️ **Configuration** - AGENTS.md setup, API connections
+- 🧠 **Memory Integration** - Optional Supermemory + QMD setup
 
-Railway automatically sets up PostgreSQL, backend, and frontend. Zero configuration needed.
+**That's it!** The skill handles the rest.
 
 ---
 
-### Option 2: Docker Compose
+<details>
+<summary>📦 <strong>Manual Deployment Options</strong> (if not using the skill)</summary>
+
+### Railway (One-Click)
+
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/_odwJ4?referralCode=VsZvQs)
+
+**Click → Wait 2 mins → Done!** Railway auto-provisions PostgreSQL, backend, and frontend.
+
+---
+
+### Docker Compose
 
 ```bash
 git clone https://github.com/adarshmishra07/claw-control
@@ -53,7 +70,7 @@ docker compose -f docker-compose.yml -f docker-compose.sqlite.yml up -d --scale 
 
 ---
 
-### Option 3: Manual Setup
+### Manual Setup
 
 ```bash
 # Clone the repo
@@ -76,17 +93,7 @@ npm run dev
 
 Open **http://localhost:5173** 🚀
 
----
-
-### Option 4: AI-Assisted Setup
-
-Let your AI agent handle everything:
-
-```bash
-npx skills add adarshmishra07/claw-control
-```
-
-Your agent will walk you through deployment, team setup, and configuration automatically.
+</details>
 
 ---
 
