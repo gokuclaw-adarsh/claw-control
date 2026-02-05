@@ -60,7 +60,7 @@ Present three options based on their comfort level:
 ```
 This is the fastest way - just click and wait!
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/_odwJ4?referralCode=VsZvQs)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/claw-control?referralCode=VsZvQs&utm_medium=integration&utm_source=template&utm_campaign=generic)
 ```
 
 **Walk them through what happens:**
