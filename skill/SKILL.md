@@ -1123,6 +1123,47 @@ After setup, ALWAYS:
 
 ---
 
+## 💓 Heartbeat Dashboard Sync
+
+**During every heartbeat, the coordinator should perform board hygiene:**
+
+### Check for Misplaced Tasks
+```bash
+# Fetch all tasks
+curl -s <BACKEND_URL>/api/tasks -H "x-api-key: <API_KEY>"
+```
+
+**Look for:**
+- Tasks stuck in "in_progress" with no recent activity
+- Completed tasks that should be archived
+- Tasks assigned to wrong agents (e.g., backend task assigned to DevOps)
+- Tasks in "review" that have been waiting too long
+
+### Fix Wrongly Placed Tasks
+```bash
+# Move task to correct column
+curl -X PUT <BACKEND_URL>/api/tasks/ID \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: <API_KEY>" \
+  -d '{"status": "correct_status", "agent_id": CORRECT_AGENT_ID}'
+```
+
+### Review Backlog
+- Check backlog for urgent items that should be prioritized
+- Look for stale tasks that need attention or removal
+- Identify tasks that can be batched together
+
+### General Board Hygiene
+- Ensure all active work has a task
+- Verify agent statuses match their assigned tasks
+- Clean up duplicate or abandoned tasks
+- Post to feed if any significant changes made
+
+**Frequency:** Every heartbeat (typically every 30 min)
+**Goal:** Keep the board accurate, current, and actionable
+
+---
+
 ## Files
 
 - `SKILL.md` - This file
