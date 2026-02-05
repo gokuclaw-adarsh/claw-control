@@ -5,6 +5,7 @@
 🌐 **[www.clawcontrol.xyz](https://www.clawcontrol.xyz)** — Live Demo & Documentation
 
 [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/_odwJ4?referralCode=VsZvQs)
+[![Skills.sh](https://img.shields.io/badge/skills.sh-Install-coral?style=flat-square)](https://skills.sh)
 [![ClawHub](https://img.shields.io/badge/ClawHub-Install_Skill-blue?style=flat-square&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0Ij48dGV4dCB5PSIxOCIgZm9udC1zaXplPSIxOCI+8J+mnjwvdGV4dD48L3N2Zz4=)](https://clawhub.ai/adarshmishra07/claw-control)
 [![GitHub stars](https://img.shields.io/github/stars/adarshmishra07/claw-control?style=flat-square&logo=github)](https://github.com/adarshmishra07/claw-control/stargazers)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](https://opensource.org/licenses/MIT)
@@ -82,7 +83,11 @@ Open **http://localhost:5173** 🚀
 
 Let your AI agent handle everything:
 
-```
+```bash
+# Via skills.sh (recommended)
+npx skills add adarshmishra07/claw-control
+
+# Or via ClawHub
 Install skill: https://clawhub.ai/adarshmishra07/claw-control
 ```
 
