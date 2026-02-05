@@ -258,7 +258,7 @@ export function LandingPage({ onEnterDashboard }: LandingPageProps) {
                 </button>
               ) : (
                 <a
-                  href="https://railway.com/deploy/_odwJ4?referralCode=VsZvQs"
+                  href="https://railway.com/deploy/claw-control?referralCode=VsZvQs&utm_medium=integration&utm_source=template&utm_campaign=generic"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="btn-primary group px-8 py-4 rounded-xl font-semibold flex items-center gap-2"
@@ -480,7 +480,7 @@ export function LandingPage({ onEnterDashboard }: LandingPageProps) {
                 The easiest way to get started. Click the button below and Railway handles everything for you.
               </p>
               <a
-                href="https://railway.com/deploy/_odwJ4?referralCode=VsZvQs"
+                href="https://railway.com/deploy/claw-control?referralCode=VsZvQs&utm_medium=integration&utm_source=template&utm_campaign=generic"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="btn-primary w-full py-3 rounded-xl text-sm sm:text-base font-semibold flex items-center justify-center gap-2 whitespace-nowrap"
@@ -627,7 +627,7 @@ npm install && npm run dev`}
                   </button>
                 ) : (
                   <a
-                    href="https://railway.com/deploy/_odwJ4?referralCode=VsZvQs"
+                    href="https://railway.com/deploy/claw-control?referralCode=VsZvQs&utm_medium=integration&utm_source=template&utm_campaign=generic"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="btn-primary group px-8 py-4 rounded-xl font-semibold flex items-center gap-2"
