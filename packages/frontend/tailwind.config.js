@@ -33,14 +33,15 @@ export default {
         accent: {
           DEFAULT: "hsl(var(--accent))",
           foreground: "hsl(var(--accent-foreground))",
-          // OpenClaw coral accents
+          // OpenClaw coral accents (use sparingly!)
           primary: '#FF6B6B',
           bright: '#FF4444',
-          muted: '#E85555',
-          secondary: '#FF6B6B',
-          tertiary: '#E85555',
+          muted: '#9CA3AF',  // Grey for descriptions, not red!
+          secondary: '#A1A1AA', // Zinc-400 grey
+          tertiary: '#71717A', // Zinc-500 grey
           warning: '#f59e0b',
           danger: '#ef4444',
+          success: '#22c55e', // Green for completed
         },
         popover: {
           DEFAULT: "hsl(var(--popover))",
@@ -66,13 +67,14 @@ export default {
         cyber: {
           black: '#0A0A0A',
           dark: '#141414',
-          green: '#FF6B6B',
-          blue: '#FF6B6B',
+          green: '#22c55e',  // Restored green for success/completed
+          blue: '#3b82f6',   // Restored blue
           pink: '#FF8080',
           yellow: '#f59e0b',
           red: '#ef4444',
-          purple: '#E85555',
+          purple: '#a855f7',
           orange: '#f97316',
+          coral: '#FF6B6B',  // OpenClaw accent
           grid: 'rgba(255, 107, 107, 0.05)',
         },
       },
