@@ -546,6 +546,9 @@ Ask: **"Want to supercharge my memory? I have two optional upgrades that make me
 
 #### 🧠 Supermemory - Cloud Long-term Memory (Official OpenClaw Plugin)
 
+> ⚠️ **Requires Supermemory Pro or higher** - The OpenClaw plugin needs a paid plan.
+> Free tier won't work. Check pricing at [supermemory.ai/pricing](https://supermemory.ai/pricing)
+
 **What it does:**
 Supermemory gives me persistent memory that survives across sessions. The official OpenClaw plugin handles everything automatically - zero manual work!
 
@@ -614,6 +617,29 @@ openclaw gateway restart
 ```
 
 **That's it!** Memory now works automatically across every conversation.
+
+---
+
+**🆓 Free Alternative: memory-lancedb (Local)**
+
+If you don't want to pay for Supermemory Pro, use the built-in LanceDB plugin instead:
+
+```json
+{
+  "plugins": {
+    "slots": {
+      "memory": "memory-lancedb"
+    },
+    "entries": {
+      "memory-lancedb": {
+        "enabled": true
+      }
+    }
+  }
+}
+```
+
+This gives you auto-recall and auto-capture locally (no cloud, no cost).
 
 ---
 
