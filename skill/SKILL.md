@@ -544,72 +544,80 @@ Ask: **"Want to supercharge my memory? I have two optional upgrades that make me
 
 ---
 
-#### 🧠 Supermemory - Cloud Long-term Memory
+#### 🧠 Supermemory - Cloud Long-term Memory (Official OpenClaw Plugin)
 
 **What it does:**
-Supermemory gives me persistent memory that survives across sessions. Without it, I wake up fresh every time. With it, I remember *everything*.
+Supermemory gives me persistent memory that survives across sessions. The official OpenClaw plugin handles everything automatically - zero manual work!
 
 **Why you'll love it:**
-- 📝 I remember your preferences forever (coding style, communication preferences, project context)
-- 🧩 I build a profile of how you work and what you like
-- 🔄 I recall past decisions so we don't rehash old discussions
-- 💡 I connect dots across conversations ("Remember when we decided X last month?")
+- 📝 **Auto-Recall**: Before every response, I automatically pull relevant memories
+- 🧩 **Auto-Capture**: After every conversation, memories are extracted and stored
+- 🔄 **User Profile**: I build a persistent profile of your preferences and context
+- 💡 **Zero effort**: Once set up, it just works in the background!
 
-**🚀 AUTO-SETUP AVAILABLE:** With browser access + GitHub login, the bot can set this up automatically!
-
-**Setup Options:**
-
----
-
-**Option 1: Full Auto (Browser + GitHub - Recommended)** ⚡
-
-If you have browser attached and are logged into GitHub:
-```
-Just say: "Set up Supermemory for me"
-
-I'll automatically:
-1. Navigate to console.supermemory.ai
-2. Click "Sign in with GitHub"
-3. OAuth authorizes (you're already logged in!)
-4. Navigate to API Keys section
-5. Create a new key and copy it
-6. Store it in TOOLS.md
-7. Done! Zero manual steps.
-```
+**Features unlocked:**
+- `/remember [text]` - Manually save something to memory
+- `/recall [query]` - Search your memories
+- AI Tools: `supermemory_store`, `supermemory_search`, `supermemory_forget`, `supermemory_profile`
+- CLI: `openclaw supermemory search/profile/wipe`
 
 ---
 
-**Option 2: Manual Setup (If no browser access)**
+**Setup (2 minutes):**
 
-1. **Create an account:**
-   ```
-   Go to console.supermemory.ai and sign up (free tier: 1M tokens, 10K searches)
-   ```
+**Step 1: Get your API key**
+```
+Go to console.supermemory.ai → API Keys → Create New Key
+(Free tier: 1M tokens, 10K searches)
+```
 
-2. **Get your API key:**
-   ```
-   Dashboard → API Keys → Create New Key → Copy it
-   ```
+**Step 2: Install the plugin**
+```bash
+openclaw plugins install @supermemory/openclaw-supermemory
+```
 
-3. **Share it with me:**
-   Once you share the API key, I'll handle everything else:
-   - Store it securely in TOOLS.md
-   - Configure memory operations
-   - Optionally connect your GitHub repos for doc syncing
+**Step 3: Enable with your API key**
 
-**Bonus: GitHub + Supermemory Integration**
+Share your API key and I'll configure it:
+```bash
+openclaw config set plugins.entries.openclaw-supermemory.enabled true
+openclaw config set plugins.entries.openclaw-supermemory.config.apiKey "sm_your_key_here"
+```
 
-If you've already set up GitHub (Step 5) AND have a Supermemory API key, I can automatically:
-- Connect your GitHub repos to Supermemory
-- Sync your documentation (.md, .txt, .rst files) to your memory
-- Enable real-time incremental sync via webhooks
+Or add to `~/.openclaw/openclaw.json`:
+```json
+{
+  "plugins": {
+    "entries": {
+      "openclaw-supermemory": {
+        "enabled": true,
+        "config": {
+          "apiKey": "sm_...",
+          "autoRecall": true,
+          "autoCapture": true,
+          "maxRecallResults": 10
+        }
+      }
+    }
+  }
+}
+```
 
-Just say: "Connect my GitHub to Supermemory" and I'll handle the OAuth flow!
+**Step 4: Restart OpenClaw**
+```bash
+openclaw gateway restart
+```
+
+**That's it!** Memory now works automatically across every conversation.
+
+---
 
 **What this enables:**
-- "Remember that I prefer TypeScript over JavaScript"
-- "What did we decide about the database schema?"
-- "Don't suggest that library again - we had issues with it"
+- I automatically remember your preferences, decisions, and context
+- Before every response, I recall relevant past conversations
+- After every chat, important info is captured for later
+- "Remember that I prefer TypeScript over JavaScript" - auto-stored!
+- "What did we decide about the database?" - auto-recalled!
 
 ---
 
