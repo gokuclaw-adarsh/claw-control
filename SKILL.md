@@ -588,6 +588,9 @@ Or add to `~/.openclaw/openclaw.json`:
 ```json
 {
   "plugins": {
+    "slots": {
+      "memory": "openclaw-supermemory"
+    },
     "entries": {
       "openclaw-supermemory": {
         "enabled": true,
@@ -602,6 +605,8 @@ Or add to `~/.openclaw/openclaw.json`:
   }
 }
 ```
+
+**Important:** The `plugins.slots.memory` setting tells OpenClaw to use Supermemory instead of the default memory-core plugin.
 
 **Step 4: Restart OpenClaw**
 ```bash
