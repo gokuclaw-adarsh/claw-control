@@ -45,6 +45,34 @@ If no → Go back and do it properly.
 
 **Your role is COORDINATOR.** Coordinate, review, verify, **ENFORCE**. Never execute.
 
+### 🔒 Repo Hierarchy (For claw-control maintainers)
+
+| Repo | Purpose | Direct Push? |
+|------|---------|--------------|
+| `claw-control-trip/` | Internal testing | ✅ Yes |
+| `claw-control` (public) | Production OSS | ❌ PR only after internal test |
+
+**Rule:** Test ALL changes in `claw-control-trip/` FIRST, then PR to public `claw-control`.
+
+### 📝 Commit Message Convention
+
+```
+[#TASK_ID] Brief description
+
+Example:
+[#129] Add workflow enforcement to SKILL.md
+```
+
+If you committed without a task: **CREATE ONE RETROACTIVELY** and link it.
+
+### 🚨 Orphan Work Protocol
+
+If work was done without a task on Mission Control:
+1. STOP and create the task NOW
+2. Mark it with what was done
+3. Set status to `completed`
+4. Don't let it happen again
+
 ---
 
 ## Setup Flow
@@ -544,22 +572,25 @@ Ask: **"Want to supercharge my memory? I have two optional upgrades that make me
 
 ---
 
-#### 🧠 Supermemory - Cloud Long-term Memory (via Skill)
+#### 🧠 Supermemory - Cloud Long-term Memory (Official OpenClaw Plugin)
+
+> ⚠️ **Requires Supermemory Pro or higher** - The OpenClaw plugin needs a paid plan.
+> Free tier won't work. Check pricing at [supermemory.ai/pricing](https://supermemory.ai/pricing)
 
 **What it does:**
-Supermemory gives me persistent memory that survives across sessions. Use it directly via the API skill - no plugins required!
+Supermemory gives me persistent memory that survives across sessions. The official OpenClaw plugin handles everything automatically - zero manual work!
 
 **Why you'll love it:**
-- 📝 **Search memories**: Retrieve relevant context by semantic search
-- 🧩 **Store anything**: Conversations, preferences, facts, documents
-- 🔄 **User Profiles**: Auto-built profiles from stored memories
-- 💡 **Free tier available**: Works without paid plans
+- 📝 **Auto-Recall**: Before every response, I automatically pull relevant memories
+- 🧩 **Auto-Capture**: After every conversation, memories are extracted and stored
+- 🔄 **User Profile**: I build a persistent profile of your preferences and context
+- 💡 **Zero effort**: Once set up, it just works in the background!
 
 **Features unlocked:**
-- Store and search memories via API
-- Build persistent user profiles
-- Group memories by container tags (user-id, project-name)
-- Sub-300ms recall latency
+- `/remember [text]` - Manually save something to memory
+- `/recall [query]` - Search your memories
+- AI Tools: `supermemory_store`, `supermemory_search`, `supermemory_forget`, `supermemory_profile`
+- CLI: `openclaw supermemory search/profile/wipe`
 
 ---
 
@@ -568,50 +599,58 @@ Supermemory gives me persistent memory that survives across sessions. Use it dir
 **Step 1: Get your API key**
 ```
 Go to console.supermemory.ai → API Keys → Create New Key
-(Free tier available for experimentation)
+(Free tier: 1M tokens, 10K searches)
 ```
 
-**Step 2: Install the Supermemory skill**
-Download the `supermemory` skill from ClawHub or add it manually to your skills folder.
-
-**Step 3: Set environment variable or store key**
+**Step 2: Install the plugin**
 ```bash
-export SUPERMEMORY_API_KEY="sm_your_key_here"
+openclaw plugins install @supermemory/openclaw-supermemory
 ```
 
-Or store in TOOLS.md (keep private!):
-```markdown
-## Credentials (Do Not Reveal)
-- **Supermemory API Key:** sm_your_key_here
+**Step 3: Enable with your API key**
+
+Share your API key and I'll configure it:
+```bash
+openclaw config set plugins.entries.openclaw-supermemory.enabled true
+openclaw config set plugins.entries.openclaw-supermemory.config.apiKey "sm_your_key_here"
 ```
 
-**That's it!** Use the skill to store/search memories as needed.
+Or add to `~/.openclaw/openclaw.json`:
+```json
+{
+  "plugins": {
+    "slots": {
+      "memory": "openclaw-supermemory"
+    },
+    "entries": {
+      "openclaw-supermemory": {
+        "enabled": true,
+        "config": {
+          "apiKey": "sm_...",
+          "autoRecall": true,
+          "autoCapture": true,
+          "maxRecallResults": 10
+        }
+      }
+    }
+  }
+}
+```
+
+**Important:** The `plugins.slots.memory` setting tells OpenClaw to use Supermemory instead of the default memory-core plugin.
+
+**Step 4: Restart OpenClaw**
+```bash
+openclaw gateway restart
+```
+
+**That's it!** Memory now works automatically across every conversation.
 
 ---
 
-**Usage Examples:**
+**🆓 Free Alternative: memory-lancedb (Local)**
 
-Store a memory:
-```bash
-curl -X POST https://api.supermemory.ai/v3/documents \
-  -H "Authorization: Bearer $SUPERMEMORY_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"content": "User prefers dark mode", "containerTag": "user-123"}'
-```
-
-Search memories:
-```bash
-curl -X POST https://api.supermemory.ai/v3/search \
-  -H "Authorization: Bearer $SUPERMEMORY_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"q": "user preferences?", "containerTag": "user-123"}'
-```
-
----
-
-**📦 Alternative: memory-lancedb (Local)**
-
-For fully local memory (no cloud), use the built-in LanceDB plugin:
+If you don't want to pay for Supermemory Pro, use the built-in LanceDB plugin instead:
 
 ```json
 {

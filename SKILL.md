@@ -45,6 +45,34 @@ If no → Go back and do it properly.
 
 **Your role is COORDINATOR.** Coordinate, review, verify, **ENFORCE**. Never execute.
 
+### 🔒 Repo Hierarchy (For claw-control maintainers)
+
+| Repo | Purpose | Direct Push? |
+|------|---------|--------------|
+| `claw-control-trip/` | Internal testing | ✅ Yes |
+| `claw-control` (public) | Production OSS | ❌ PR only after internal test |
+
+**Rule:** Test ALL changes in `claw-control-trip/` FIRST, then PR to public `claw-control`.
+
+### 📝 Commit Message Convention
+
+```
+[#TASK_ID] Brief description
+
+Example:
+[#129] Add workflow enforcement to SKILL.md
+```
+
+If you committed without a task: **CREATE ONE RETROACTIVELY** and link it.
+
+### 🚨 Orphan Work Protocol
+
+If work was done without a task on Mission Control:
+1. STOP and create the task NOW
+2. Mark it with what was done
+3. Set status to `completed`
+4. Don't let it happen again
+
 ---
 
 ## Setup Flow
