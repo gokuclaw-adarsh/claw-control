@@ -48,8 +48,8 @@ services:
   # Frontend
   frontend:
     build:
-      context: ./packages/frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: packages/frontend/Dockerfile
     container_name: claw-control-frontend
     environment:
       VITE_API_URL: http://localhost:3001
