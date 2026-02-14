@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Git
+.git/
+.gitignore
+
+# Build outputs (we rebuild in Docker)
+**/dist/
+**/build/
+
+# Development files
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test
+coverage/
+.nyc_output/
+
+# Documentation (not needed in container)
+docs/
+*.md
+!README.md
+
+# Docker files (avoid recursion)
+docker-compose*.yml
+Dockerfile*

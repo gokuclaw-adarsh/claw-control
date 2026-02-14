@@ -1,29 +1,50 @@
 import { useCallback, useState } from 'react';
-import { Wifi, WifiOff, Bot, LayoutGrid, MessageSquare, PanelRightOpen } from 'lucide-react';
+import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { Wifi, WifiOff, Bot, LayoutGrid, MessageSquare, PanelRightOpen, Plane } from 'lucide-react';
 import { AgentsList } from './components/AgentsList';
 import { KanbanBoard } from './components/KanbanBoard';
 import { AgentChat } from './components/AgentChat';
 import { useAgents, useTasks, useMessages, useSSE, transformAgent, transformTask } from './hooks/useApi';
 import type { Agent, Task, Message, TaskStatus } from './types';
+import TripPlanner from './pages/TripPlanner';
 
 type MobileView = 'agents' | 'board' | 'chat';
 
 function Header({ connected }: { connected: boolean }) {
+  const location = useLocation();
+  const isTripPlanner = location.pathname === '/trip-planner';
+  
   return (
     <header className="h-14 sm:h-16 px-4 sm:px-6 border-b border-white/5 bg-claw-surface/80 backdrop-blur-md flex items-center justify-between">
       <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-accent-primary/20 to-accent-secondary/20 border border-accent-primary/30 flex items-center justify-center">
-          <span className="text-lg">🦞</span>
-        </div>
-        <div>
-          <h1 className="text-base sm:text-lg font-bold tracking-tight text-white">
-            Claw Control
-          </h1>
-          <p className="text-[10px] text-accent-muted font-medium tracking-wide uppercase hidden sm:block">
-            Agent Operations Center
-          </p>
-        </div>
+        <Link to="/" className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-accent-primary/20 to-accent-secondary/20 border border-accent-primary/30 flex items-center justify-center">
+            <span className="text-lg">🦞</span>
+          </div>
+          <div>
+            <h1 className="text-base sm:text-lg font-bold tracking-tight text-white">
+              Claw Control
+            </h1>
+            <p className="text-[10px] text-accent-muted font-medium tracking-wide uppercase hidden sm:block">
+              Agent Operations Center
+            </p>
+          </div>
+        </Link>
+        
+        {/* Trip Planner Link */}
+        <Link 
+          to="/trip-planner"
+          className={`ml-4 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+            isTripPlanner 
+              ? 'bg-accent-primary/20 text-accent-primary border border-accent-primary/30' 
+              : 'text-accent-muted hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <Plane className="w-4 h-4" />
+          <span className="hidden sm:inline">Trip Planner</span>
+        </Link>
       </div>
+      
       <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-colors ${
         connected 
           ? 'bg-accent-primary/10 border-accent-primary/30' 
@@ -97,7 +118,7 @@ function MobileNav({ activeView, onViewChange, agentCount, messageCount }: Mobil
   );
 }
 
-export default function App() {
+function Dashboard() {
   const [mobileView, setMobileView] = useState<MobileView>('board');
   const [feedCollapsed, setFeedCollapsed] = useState(false);
   const { agents, setAgents, loading: agentsLoading } = useAgents();
@@ -156,7 +177,7 @@ export default function App() {
   }, [moveTask]);
 
   return (
-    <div className="h-screen flex flex-col bg-claw-bg text-white overflow-hidden">
+    <>
       <Header connected={connected} />
       
       {/* Desktop Layout (md+) */}
@@ -233,6 +254,19 @@ export default function App() {
         agentCount={agents.length}
         messageCount={messages.length}
       />
-    </div>
+    </>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <div className="h-screen flex flex-col bg-claw-bg text-white overflow-hidden">
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/trip-planner" element={<TripPlanner />} />
+        </Routes>
+      </div>
+    </BrowserRouter>
   );
 }
