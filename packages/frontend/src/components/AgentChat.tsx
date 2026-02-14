@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { MessageSquare, PanelRightClose, ChevronDown } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import type { Message } from '../types';
+import { AgentAvatar } from './AgentAvatar';
 
 interface AgentChatProps {
   messages: Message[];
@@ -104,7 +105,6 @@ function getAgentInitial(name: string): string {
 
 function ChatBubble({ message }: { message: Message }) {
   const colors = getAgentColor(message.agentId);
-  const initial = getAgentInitial(message.agentName);
   
   return (
     <div className="flex gap-3 px-4 py-3 hover:bg-white/[0.02] transition-colors animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -115,10 +115,9 @@ function ChatBubble({ message }: { message: Message }) {
         flex items-center justify-center
         shadow-lg shadow-black/20
         ring-2 ring-white/10
+        overflow-hidden
       `}>
-        <span className="text-white font-bold text-sm drop-shadow-md">
-          {initial}
-        </span>
+        <AgentAvatar name={message.agentName} size={40} />
       </div>
       
       {/* Message Content */}
