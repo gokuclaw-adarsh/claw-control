@@ -1,19 +1,15 @@
 import { useCallback, useState } from 'react';
-import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { Wifi, WifiOff, Bot, LayoutGrid, MessageSquare, PanelRightOpen, Plane } from 'lucide-react';
+import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
+import { Wifi, WifiOff, Bot, LayoutGrid, MessageSquare, PanelRightOpen } from 'lucide-react';
 import { AgentsList } from './components/AgentsList';
 import { KanbanBoard } from './components/KanbanBoard';
 import { AgentChat } from './components/AgentChat';
 import { useAgents, useTasks, useMessages, useSSE, transformAgent, transformTask } from './hooks/useApi';
 import type { Agent, Task, Message, TaskStatus } from './types';
-import TripPlanner from './pages/TripPlanner';
 
 type MobileView = 'agents' | 'board' | 'chat';
 
 function Header({ connected }: { connected: boolean }) {
-  const location = useLocation();
-  const isTripPlanner = location.pathname === '/trip-planner';
-  
   return (
     <header className="h-14 sm:h-16 px-4 sm:px-6 border-b border-white/5 bg-claw-surface/80 backdrop-blur-md flex items-center justify-between">
       <div className="flex items-center gap-3">
@@ -29,19 +25,6 @@ function Header({ connected }: { connected: boolean }) {
               Agent Operations Center
             </p>
           </div>
-        </Link>
-        
-        {/* Trip Planner Link */}
-        <Link 
-          to="/trip-planner"
-          className={`ml-4 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-            isTripPlanner 
-              ? 'bg-accent-primary/20 text-accent-primary border border-accent-primary/30' 
-              : 'text-accent-muted hover:text-white hover:bg-white/5'
-          }`}
-        >
-          <Plane className="w-4 h-4" />
-          <span className="hidden sm:inline">Trip Planner</span>
         </Link>
       </div>
       
@@ -264,7 +247,6 @@ export default function App() {
       <div className="h-screen flex flex-col bg-claw-bg text-white overflow-hidden">
         <Routes>
           <Route path="/" element={<Dashboard />} />
-          <Route path="/trip-planner" element={<TripPlanner />} />
         </Routes>
       </div>
     </BrowserRouter>
