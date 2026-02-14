@@ -17,7 +17,8 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Inbox, ListTodo, Eye, CheckCircle2, GripVertical, Clock, Bot, Play } from 'lucide-react';
+import { Inbox, ListTodo, Eye, CheckCircle2, GripVertical, Clock, Play } from 'lucide-react';
+import { AgentAvatar } from './AgentAvatar';
 import type { Task, KanbanData, TaskStatus, Agent } from '../types';
 import { TaskDetailModal } from './TaskDetailModal';
 
@@ -143,11 +144,11 @@ function TaskCard({ task, agents, isDragging, onClick }: TaskCardProps) {
         {/* Agent Badge */}
         {agent ? (
           <div className="flex items-center gap-2 min-w-0">
-            <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-accent-secondary/20 to-accent-tertiary/10 border border-white/10 flex items-center justify-center flex-shrink-0">
+            <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-accent-secondary/20 to-accent-tertiary/10 border border-white/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
               {agent.avatar ? (
                 <img src={agent.avatar} alt="" className="w-full h-full rounded-lg object-cover" />
               ) : (
-                <Bot className="w-3.5 h-3.5 text-accent-secondary" />
+                <AgentAvatar name={agent.name} size={24} enableBlink={false} />
               )}
             </div>
             <span className="text-[11px] font-medium text-accent-secondary truncate max-w-[80px]">
@@ -156,8 +157,8 @@ function TaskCard({ task, agents, isDragging, onClick }: TaskCardProps) {
           </div>
         ) : (
           <div className="flex items-center gap-2 min-w-0">
-            <div className="w-6 h-6 rounded-lg bg-accent-muted/10 border border-white/5 flex items-center justify-center flex-shrink-0">
-              <Bot className="w-3.5 h-3.5 text-accent-muted" />
+            <div className="w-6 h-6 rounded-lg bg-accent-muted/10 border border-white/5 flex items-center justify-center flex-shrink-0 overflow-hidden">
+              <AgentAvatar name="Unassigned" size={24} enableBlink={false} />
             </div>
             <span className="text-[11px] text-accent-muted">Unassigned</span>
           </div>
