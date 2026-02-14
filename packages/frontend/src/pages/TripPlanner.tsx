@@ -60,19 +60,23 @@ const destinations: Destination[] = [
     weather: { temp: '28-32°C', condition: 'Sunny & Warm', icon: 'sun' },
     priceRange: { budget: 25000, mid: 32000, premium: 45000 },
     flightCost: 10000,
-    stayCost: '₹4K/night/room',
+    stayCost: '₹4-7K/night',
     duration: '5 Days',
-    highlights: ['Cliff-top cafes', 'Ayurveda spa', 'Backwaters', 'Pristine beaches'],
-    notes: ['Best time: Oct-Mar', 'Peaceful beach vibes', '3 rooms needed for 6 people'],
+    highlights: ['Cliff-top cafes', 'Mangrove Kayaking', 'Surf Schools', 'Papanasam Beach'],
+    notes: [
+      'Resorts: Elixir Cliff (Premium), B\'Canti (Mid), Nebo Hotel (Modern)',
+      'Best Cafes: Abba German Bakery (Breakfast), Rock n Roll (Sunset)',
+      'Hidden Gem: Kayaking at Kappil Lake (Copa Cabana)'
+    ],
     itinerary: [
       {
         day: 1,
-        title: 'Arrival & Cliff Sunset',
+        title: 'Arrival & Cliff Vibes',
         activities: [
           {
             time: 'morning',
             title: 'Fly to Trivandrum',
-            description: 'Delhi/Mumbai → Trivandrum (2.5-3 hrs)',
+            description: 'Delhi/Mumbai → Trivandrum (TRV).',
             duration: '3 hrs',
             cost: { budget: 8000, mid: 10000, premium: 15000 },
             transport: 'Flight',
@@ -81,141 +85,140 @@ const destinations: Destination[] = [
           {
             time: 'afternoon',
             title: 'Transfer to Varkala',
-            description: 'Scenic 1-hour drive to Varkala Cliff area. Check into resort.',
-            duration: '2 hrs',
-            cost: { budget: 500, mid: 800, premium: 1500 },
-            transport: 'Taxi/Cab',
-            tip: 'Book hotel near North Cliff for best views'
+            description: 'Pre-paid taxi to Varkala Cliff (1.5 hrs). Check into Elixir Cliff or similar.',
+            duration: '1.5 hrs',
+            cost: { budget: 1500, mid: 1800, premium: 2500 },
+            transport: 'Taxi',
+            tip: 'Uber is unreliable; use Airport Pre-paid taxi counter.'
           },
           {
             time: 'evening',
-            title: 'Varkala Cliff Sunset',
-            description: 'Watch spectacular sunset from the cliff. Explore cliff-top cafes and shops.',
+            title: 'Sunset at Rock n Roll Cafe',
+            description: 'Best sunset view point on the cliff. Live music often starts at 7 PM.',
             duration: '3 hrs',
-            cost: { budget: 500, mid: 1000, premium: 2000 },
+            cost: { budget: 800, mid: 1500, premium: 2500 },
             mustDo: true,
-            tip: 'Try the fresh seafood at cliff restaurants'
+            tip: 'Try the fresh grilled fish and cocktails.'
           }
         ]
       },
       {
         day: 2,
-        title: 'Beach Day & North Cliff',
+        title: 'Surf & Sand',
         activities: [
           {
             time: 'morning',
-            title: 'Papanasam Beach',
-            description: 'Relax at the holy Papanasam Beach. Early morning is best for swimming.',
+            title: 'Surf Lesson / Beach',
+            description: 'Surf lesson at "Moon Waves" or "Soul & Surf". Or relax at Black Beach.',
             duration: '3 hrs',
-            cost: { budget: 0, mid: 0, premium: 0 },
+            cost: { budget: 0, mid: 1500, premium: 2500 },
             mustDo: true,
-            tip: 'Beach is less crowded before 10 AM'
+            tip: 'Morning waves are best for beginners.'
           },
           {
             time: 'afternoon',
-            title: 'North Cliff Exploration',
-            description: 'Walk along the cliff path. Browse handicraft shops, try local cafes.',
-            duration: '3 hrs',
-            cost: { budget: 800, mid: 1500, premium: 2500 },
-            tip: 'Try banana pancakes at Cafe del Mar'
+            title: 'Lunch at Abba German Bakery',
+            description: 'Famous for fresh bread, pastries, and chill vibes. Good for a late brunch.',
+            duration: '2 hrs',
+            cost: { budget: 600, mid: 1000, premium: 1500 },
+            tip: 'Try the prawn curry or bakery items.'
           },
           {
             time: 'evening',
-            title: 'Beach Sunset Yoga',
-            description: 'Join a yoga session on the beach or cliff. Many free community sessions available.',
+            title: 'North Cliff Walk',
+            description: 'Walk the entire cliff path. Shop for Tibetan handicrafts and spices.',
             duration: '2 hrs',
-            cost: { budget: 0, mid: 500, premium: 1000 },
+            cost: { budget: 500, mid: 1000, premium: 2000 },
             canSkip: true
           }
         ]
       },
       {
         day: 3,
-        title: 'Ayurveda & Relaxation',
+        title: 'Hidden Gems: Kappil',
         activities: [
           {
             time: 'morning',
-            title: 'Ayurveda Spa Session',
-            description: 'Traditional Kerala Ayurvedic massage and treatments. Book at resort or local spa.',
+            title: 'Mangrove Kayaking',
+            description: 'Travel to Kappil (15 min). Kayak through peaceful mangroves (Contact: Copa Cabana).',
             duration: '3 hrs',
-            cost: { budget: 1500, mid: 3000, premium: 6000 },
+            cost: { budget: 800, mid: 1000, premium: 1500 },
             mustDo: true,
-            tip: 'Opt for Abhyanga (oil massage) for first-timers'
+            transport: 'Auto/Taxi',
+            tip: 'Go early (8 AM) to beat the heat and see birds.'
           },
           {
             time: 'afternoon',
-            title: 'Papanasam Beach',
-            description: 'Post-treatment relaxation at the beach. Light lunch at beachside shack.',
-            duration: '3 hrs',
-            cost: { budget: 400, mid: 800, premium: 1500 }
+            title: 'Edava Beach Road',
+            description: 'Scenic coastal road drive/walk. Less crowded than Varkala main beach.',
+            duration: '2 hrs',
+            cost: { budget: 300, mid: 500, premium: 1000 }
           },
           {
             time: 'evening',
-            title: 'Janardhana Swamy Temple',
-            description: 'Visit the 2000-year-old cliff-side temple. Beautiful evening aarti.',
+            title: 'Dinner at Cafe del Mar',
+            description: 'Upscale cliff dining. Great steaks, pasta, and romantic ambiance.',
             duration: '2 hrs',
-            cost: { budget: 0, mid: 0, premium: 0 },
-            canSkip: true,
-            tip: 'Dress modestly for temple visit'
+            cost: { budget: 1000, mid: 2000, premium: 3000 },
+            mustDo: true,
+            tip: 'Reserve a cliff-edge table in advance.'
           }
         ]
       },
       {
         day: 4,
-        title: 'Alleppey Backwaters',
+        title: 'Culture & Wellness',
         activities: [
           {
             time: 'morning',
-            title: 'Drive to Alleppey',
-            description: 'Early morning drive (2.5 hrs) to Alleppey for backwater experience.',
-            duration: '3 hrs',
-            cost: { budget: 1000, mid: 1500, premium: 2500 },
-            transport: 'Taxi'
+            title: 'Janardhana Swamy Temple',
+            description: 'Visit the 2000-year-old temple. Experience the authentic spiritual side.',
+            duration: '1.5 hrs',
+            cost: { budget: 0, mid: 0, premium: 0 },
+            canSkip: true,
+            tip: 'Dress conservatively (shoulders/knees covered).'
           },
           {
             time: 'afternoon',
-            title: 'Houseboat Cruise',
-            description: 'Cruise through Kerala backwaters. Includes lunch on boat, village views.',
-            duration: '5 hrs',
-            cost: { budget: 3000, mid: 5000, premium: 10000 },
+            title: 'Ayurvedic Massage',
+            description: 'Full body massage at a reputed center like "AyurSoul" or your resort.',
+            duration: '2 hrs',
+            cost: { budget: 1500, mid: 3000, premium: 5000 },
             mustDo: true,
-            tip: 'Book shared boat for budget, private for premium'
+            tip: 'Abhyanga (oil massage) is highly recommended.'
           },
           {
             time: 'evening',
-            title: 'Return to Varkala',
-            description: 'Drive back to Varkala. Dinner at favorite cliff restaurant.',
+            title: 'Final Sunset & Shopping',
+            description: 'Last chance for souvenirs. Relax at "Darjeeling Cafe" for vibes.',
             duration: '3 hrs',
-            cost: { budget: 1500, mid: 2000, premium: 3500 },
-            transport: 'Taxi'
+            cost: { budget: 800, mid: 1500, premium: 2500 }
           }
         ]
       },
       {
         day: 5,
-        title: 'Kovalam & Departure',
+        title: 'Departure',
         activities: [
           {
             time: 'morning',
-            title: 'Checkout & Kovalam Beach',
-            description: 'Check out, drive to Kovalam (1 hr). Famous lighthouse beach visit.',
-            duration: '3 hrs',
-            cost: { budget: 600, mid: 1000, premium: 1500 },
-            transport: 'Taxi',
-            tip: 'Climb lighthouse for panoramic views (₹50)'
+            title: 'Lazy Breakfast',
+            description: 'Enjoy a slow morning at the resort. Checkout by 11 AM.',
+            duration: '2 hrs',
+            cost: { budget: 500, mid: 1000, premium: 1500 }
           },
           {
             time: 'afternoon',
-            title: 'Beach Time & Lunch',
-            description: 'Relax at Kovalam. Fresh seafood lunch at German Bakery or local restaurant.',
+            title: 'Travel to Airport',
+            description: 'Taxi to Trivandrum Airport. Maybe stop at Mall of Travancore for AC/Food.',
             duration: '3 hrs',
-            cost: { budget: 600, mid: 1200, premium: 2000 },
-            canSkip: true
+            cost: { budget: 1500, mid: 1800, premium: 2500 },
+            transport: 'Taxi'
           },
           {
             time: 'evening',
             title: 'Fly Home',
-            description: 'Transfer to Trivandrum airport. Evening flight back to Delhi/Mumbai.',
+            description: 'Flight back to origin city.',
             duration: '3 hrs',
             cost: { budget: 8000, mid: 10000, premium: 15000 },
             transport: 'Flight',
@@ -227,172 +230,174 @@ const destinations: Destination[] = [
   },
   {
     id: 'sri-lanka',
-    name: 'Sri Lanka',
+    name: 'Sri Lanka (South Coast)',
     country: 'South Asia',
     heroImage: 'https://images.unsplash.com/photo-1586394461970-e7f9d0c0541b?w=800&q=80',
     recommendation: 'rushed',
-    recommendationText: 'Rushed for 5 days',
-    weather: { temp: '25-30°C', condition: 'Tropical', icon: 'sun' },
-    priceRange: { budget: 45000, mid: 52000, premium: 70000 },
+    recommendationText: 'Optimized South Route',
+    weather: { temp: '27-31°C', condition: 'Sunny/Humid', icon: 'sun' },
+    priceRange: { budget: 50000, mid: 65000, premium: 85000 },
     flightCost: 18000,
-    stayCost: '₹3-5K/night/room',
+    stayCost: '₹5-8K/night',
     duration: '5 Days',
-    highlights: ['Nine Arch Bridge', 'Temple of Tooth', 'Whale watching', 'Scenic train'],
-    notes: ['Visa on arrival', 'Lots of travel between cities', 'Better with 7+ days'],
+    highlights: ['Mirissa Whales', 'Galle Fort', 'Unawatuna Beach', 'Turtle Hatchery'],
+    notes: [
+      'Route: Colombo -> Galle -> Mirissa -> Colombo (Skipping Kandy/Ella due to time)',
+      'Visa: ETA required ($50)',
+      'Best Base: Unawatuna or Mirissa for couples'
+    ],
     itinerary: [
       {
         day: 1,
-        title: 'Colombo Arrival',
+        title: 'Arrival & Transfer to Galle',
         activities: [
           {
             time: 'morning',
-            title: 'Fly to Colombo',
-            description: 'Delhi/Mumbai → Colombo (3-4 hrs). Visa on arrival.',
+            title: 'Fly to Colombo (CMB)',
+            description: 'Arrive early. Exchange currency. Buy SIM card (Dialog).',
             duration: '4 hrs',
-            cost: { budget: 15000, mid: 18000, premium: 25000 },
+            cost: { budget: 18000, mid: 22000, premium: 28000 },
             transport: 'Flight',
-            mustDo: true,
-            tip: 'Get Sri Lankan rupees at airport'
+            mustDo: true
           },
           {
             time: 'afternoon',
-            title: 'Galle Face Green',
-            description: 'Explore the famous oceanfront promenade. Street food, kite flying.',
-            duration: '2 hrs',
-            cost: { budget: 500, mid: 1000, premium: 1500 },
-            tip: 'Try isso wade (prawn fritters)'
+            title: 'Highway to Galle',
+            description: 'Take Expressway to Galle (2.5 hrs). Much faster than coastal road.',
+            duration: '2.5 hrs',
+            cost: { budget: 8000, mid: 10000, premium: 12000 },
+            transport: 'Private Van',
+            tip: 'Book a large van for 6 people + luggage beforehand.'
           },
           {
             time: 'evening',
-            title: 'Gangaramaya Temple',
-            description: 'Visit the beautiful Buddhist temple. Evening prayers are magical.',
-            duration: '2 hrs',
-            cost: { budget: 200, mid: 200, premium: 200 },
+            title: 'Galle Fort Sunset',
+            description: 'Walk the ramparts of the Dutch Fort. Dinner at "Pedlar\'s Inn" or "A Minute by Tuk Tuk".',
+            duration: '3 hrs',
+            cost: { budget: 1500, mid: 2500, premium: 4000 },
             mustDo: true
           }
         ]
       },
       {
         day: 2,
-        title: 'Scenic Train to Kandy',
+        title: 'Unawatuna & Dalawella',
         activities: [
           {
             time: 'morning',
-            title: 'Train to Kandy',
-            description: 'Scenic 3-hour train ride through tea plantations and mountains.',
-            duration: '4 hrs',
-            cost: { budget: 200, mid: 500, premium: 1500 },
-            transport: 'Train',
+            title: 'Dalawella Beach (Frog Rock)',
+            description: 'Iconic rope swing and "Frog Rock". Great for swimming and photos.',
+            duration: '3 hrs',
+            cost: { budget: 500, mid: 1000, premium: 1500 },
             mustDo: true,
-            tip: 'Book first class for guaranteed window seat'
+            tip: 'Go early to avoid Instagram crowds at the swing.'
           },
           {
             time: 'afternoon',
-            title: 'Kandy Lake Walk',
-            description: 'Stroll around the beautiful Kandy Lake. Check into hotel.',
-            duration: '2 hrs',
-            cost: { budget: 0, mid: 0, premium: 0 }
+            title: 'Unawatuna Beach Lunch',
+            description: 'Relax at a beach shack like "Kingfisher". Safe swimming bay.',
+            duration: '3 hrs',
+            cost: { budget: 1000, mid: 2000, premium: 3000 }
           },
           {
             time: 'evening',
-            title: 'Temple of the Tooth',
-            description: 'Visit Sri Lanka\'s most sacred Buddhist temple. Evening puja ceremony.',
-            duration: '3 hrs',
-            cost: { budget: 1500, mid: 1500, premium: 1500 },
-            mustDo: true,
-            tip: 'Wear modest clothing covering knees/shoulders'
+            title: 'Japanese Peace Pagoda',
+            description: 'Short hike/tuk-tuk for a stunning sunset view over the ocean.',
+            duration: '1.5 hrs',
+            cost: { budget: 300, mid: 500, premium: 800 },
+            canSkip: true
           }
         ]
       },
       {
         day: 3,
-        title: 'Drive to Ella',
+        title: 'Whales & Mirissa Vibes',
         activities: [
           {
             time: 'morning',
-            title: 'Drive to Ella',
-            description: 'Scenic 4-hour drive through hill country. Stop at tea factory.',
-            duration: '5 hrs',
-            cost: { budget: 3000, mid: 4000, premium: 6000 },
-            transport: 'Private Car',
-            tip: 'Visit a tea estate en route'
+            title: 'Whale Watching',
+            description: 'Early morning boat from Mirissa Harbour (6 AM). Blue Whales are common in March.',
+            duration: '4 hrs',
+            cost: { budget: 6000, mid: 8000, premium: 12000 },
+            mustDo: true,
+            transport: 'Boat',
+            tip: 'Sea can be choppy; take motion sickness pills 30 mins prior.'
           },
           {
             time: 'afternoon',
-            title: 'Nine Arch Bridge',
-            description: 'Visit the iconic colonial-era railway bridge. Great for photos.',
-            duration: '2 hrs',
+            title: 'Coconut Tree Hill',
+            description: 'Famous photo spot. Walk from Mirissa beach.',
+            duration: '1.5 hrs',
             cost: { budget: 0, mid: 0, premium: 0 },
-            mustDo: true,
-            tip: 'Train passes at 11:30 AM and 3:30 PM'
+            tip: 'Very crowded at sunset; go mid-afternoon.'
           },
           {
             time: 'evening',
-            title: 'Ella Town',
-            description: 'Explore the charming hill town. Great cafes and restaurants.',
+            title: 'Seafood Dinner on Beach',
+            description: 'Tables set up on the sand with fresh catch on display. Romantic vibe.',
             duration: '3 hrs',
-            cost: { budget: 800, mid: 1500, premium: 2500 }
+            cost: { budget: 2000, mid: 3500, premium: 5000 },
+            mustDo: true
           }
         ]
       },
       {
         day: 4,
-        title: 'Ella Hike & Mirissa',
+        title: 'Turtles & River Safari',
         activities: [
           {
             time: 'morning',
-            title: 'Little Adam\'s Peak',
-            description: 'Easy sunrise hike with stunning views. 1.5 hrs round trip.',
-            duration: '2 hrs',
-            cost: { budget: 0, mid: 0, premium: 500 },
-            mustDo: true,
-            tip: 'Start by 5:30 AM for sunrise'
+            title: 'Sea Turtle Hatchery',
+            description: 'Visit a hatchery in Habaraduwa. Release baby turtles (ethical concerns vary).',
+            duration: '1.5 hrs',
+            cost: { budget: 1000, mid: 1500, premium: 2000 },
+            canSkip: true
           },
           {
             time: 'afternoon',
-            title: 'Drive to Mirissa',
-            description: 'Long 4-hour drive to the south coast beaches.',
-            duration: '5 hrs',
-            cost: { budget: 4000, mid: 5000, premium: 8000 },
-            transport: 'Private Car'
+            title: 'Madol Duwa River Safari',
+            description: 'Boat safari on Koggala Lake. Visit Cinnamon Island.',
+            duration: '2.5 hrs',
+            cost: { budget: 2000, mid: 3000, premium: 5000 },
+            transport: 'Boat'
           },
           {
             time: 'evening',
-            title: 'Mirissa Beach Sunset',
-            description: 'Relax on the beautiful crescent beach. Fresh seafood dinner.',
+            title: 'Return to Colombo',
+            description: 'Drive back to Colombo (2.5 hrs). Check into city hotel.',
             duration: '3 hrs',
-            cost: { budget: 1000, mid: 2000, premium: 4000 },
-            tip: 'Try the grilled lobster!'
+            cost: { budget: 8000, mid: 10000, premium: 12000 },
+            transport: 'Private Van'
           }
         ]
       },
       {
         day: 5,
-        title: 'Beach & Departure',
+        title: 'Colombo Shopping & Fly',
         activities: [
           {
             time: 'morning',
-            title: 'Whale Watching (Optional)',
-            description: 'Blue whale watching tour. Best Dec-Apr. Skip if prone to seasickness.',
-            duration: '4 hrs',
-            cost: { budget: 4000, mid: 5000, premium: 8000 },
+            title: 'Ministry of Crab (Optional)',
+            description: 'World-famous crab restaurant. Expensive but iconic.',
+            duration: '2 hrs',
+            cost: { budget: 0, mid: 5000, premium: 15000 },
             canSkip: true,
-            tip: 'Take motion sickness pills'
+            tip: 'Reservation mandatory days in advance.'
           },
           {
             time: 'afternoon',
-            title: 'Beach Time',
-            description: 'Final beach relaxation. Pack and prepare for departure.',
-            duration: '3 hrs',
-            cost: { budget: 500, mid: 1000, premium: 2000 }
+            title: 'Shopping at Odel / Spa Ceylon',
+            description: 'Buy teas, spa products, and souvenirs.',
+            duration: '2 hrs',
+            cost: { budget: 2000, mid: 5000, premium: 10000 }
           },
           {
             time: 'evening',
-            title: 'Fly Home',
-            description: 'Drive to Colombo airport (3 hrs). Evening flight back.',
-            duration: '5 hrs',
-            cost: { budget: 18000, mid: 20000, premium: 28000 },
-            transport: 'Flight + Car',
+            title: 'Airport Transfer',
+            description: 'Head to CMB Airport. Allow 1 hr for traffic.',
+            duration: '2 hrs',
+            cost: { budget: 2000, mid: 3000, premium: 4000 },
+            transport: 'Taxi',
             mustDo: true
           }
         ]
@@ -405,20 +410,20 @@ const destinations: Destination[] = [
     country: 'India',
     heroImage: 'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=800&q=80',
     recommendation: 'unavailable',
-    recommendationText: 'Not Available - March',
-    weather: { temp: '-10 to -20°C', condition: 'Extreme Cold', icon: 'cloud-snow' },
+    recommendationText: 'Too Risky (March)',
+    weather: { temp: '-5 to 8°C', condition: 'Freezing', icon: 'cloud-snow' },
     priceRange: { budget: 35000, mid: 45000, premium: 65000 },
-    flightCost: 12000,
-    stayCost: '₹3-6K/night',
-    duration: '6-7 Days',
-    highlights: ['Pangong Lake', 'Nubra Valley', 'Monasteries', 'Mountain passes'],
-    seasonInfo: 'Season: June - September',
+    flightCost: 15000,
+    stayCost: '₹4-8K/night',
+    duration: '6 Days',
+    highlights: ['Frozen Pangong', 'Snow Covered Landscapes', 'Empty Monasteries'],
+    seasonInfo: 'Season Starts: Late May',
     notes: [
-      '❌ Roads CLOSED until mid-May',
-      '❌ Only flight access (weather unreliable)',
-      '❌ Extreme cold (-10 to -20°C)',
-      '❌ Most hotels/guesthouses closed',
-      '❌ Oxygen levels challenging'
+      '❌ Roads (Manali/Srinagar) CLOSED',
+      '⚠️ Pangong Lake: Frozen solid (-20°C night)',
+      '⚠️ Chang La Pass: High risk of snow closure',
+      '⚠️ Water in hotels: Pipes often frozen',
+      '✅ Only for hardcore adventure, not for relaxed couples'
     ],
     itinerary: []
   }
