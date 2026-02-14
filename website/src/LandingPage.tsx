@@ -27,8 +27,10 @@ import {
   Copy,
   Check,
   Sparkles,
+  FileText,
 } from 'lucide-react';
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 
 // Animation variants
 const fadeInUp = {
@@ -172,8 +174,15 @@ export function LandingPage({ onEnterDashboard }: LandingPageProps) {
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
-              className="flex items-center gap-4"
+              className="flex items-center gap-2 sm:gap-4"
             >
+              <Link
+                to="/changelog"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-2 text-sm text-gray-400 hover:text-[#FF6B6B] transition-colors"
+              >
+                <FileText className="w-4 h-4" />
+                Changelog
+              </Link>
               <a
                 href="https://github.com/adarshmishra07/claw-control"
                 target="_blank"
@@ -659,8 +668,18 @@ npm install && npm run dev`}
               <span className="text-xl">🦞</span>
               <span className="font-semibold gradient-text">Claw Control</span>
             </div>
-            <div className="text-sm text-gray-500 font-mono">
-              Built with love by the OpenClaw community
+            <div className="flex items-center gap-4 text-sm text-gray-500">
+              <Link
+                to="/changelog"
+                className="hover:text-[#FF6B6B] transition-colors flex items-center gap-1"
+              >
+                <FileText className="w-4 h-4" />
+                Changelog
+              </Link>
+              <span className="font-mono hidden sm:inline">•</span>
+              <span className="font-mono hidden sm:inline">
+                Built with love by the OpenClaw community
+              </span>
             </div>
             <div className="flex items-center gap-4">
               <a
