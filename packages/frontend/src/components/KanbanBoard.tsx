@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -17,9 +17,10 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Inbox, ListTodo, Eye, CheckCircle2, GripVertical, Clock, Bot, Play } from 'lucide-react';
-import type { Task, KanbanData, TaskStatus, Agent } from '../types';
+import { Inbox, ListTodo, Eye, CheckCircle2, GripVertical, Clock, Play, Loader2 } from 'lucide-react';
 import { AgentAvatar } from './AgentAvatar';
+import type { Task, KanbanData, TaskStatus, Agent } from '../types';
+import { TaskDetailModal } from './TaskDetailModal';
 
 // Helper to format relative time
 function getRelativeTime(dateString?: string): string {
@@ -85,6 +86,10 @@ interface KanbanBoardProps {
   agents: Agent[];
   loading?: boolean;
   onMoveTask: (taskId: string, newStatus: TaskStatus) => void;
+  // Completed column pagination props
+  loadMoreCompleted?: () => void;
+  completedLoadingMore?: boolean;
+  completedHasMore?: boolean;
 }
 
 const columnConfig: Record<TaskStatus, { title: string; icon: typeof Inbox; color: string }> = {
@@ -99,15 +104,17 @@ interface TaskCardProps {
   task: Task;
   agents: Agent[];
   isDragging?: boolean;
+  onClick?: () => void;
 }
 
-function TaskCard({ task, agents, isDragging }: TaskCardProps) {
+function TaskCard({ task, agents, isDragging, onClick }: TaskCardProps) {
   const agent = agents.find(a => a.id === task.agentId);
   const statusStyle = statusColors[task.status];
   const relativeTime = getRelativeTime(task.updatedAt || task.createdAt);
   
   return (
     <div 
+      onClick={onClick}
       className={`
         group relative p-3.5 rounded-xl border border-white/5 
         bg-gradient-to-br from-claw-card to-claw-surface
@@ -115,7 +122,7 @@ function TaskCard({ task, agents, isDragging }: TaskCardProps) {
         border-l-[3px] ${statusStyle.border} touch-manipulation
         ${isDragging 
           ? 'shadow-lg shadow-accent-primary/20 scale-[1.02] border-accent-primary/30' 
-          : `hover:border-white/10 ${statusStyle.glow} active:scale-[0.98]`
+          : `hover:border-white/10 ${statusStyle.glow} active:scale-[0.98] cursor-pointer`
         }
       `}
     >
@@ -142,7 +149,11 @@ function TaskCard({ task, agents, isDragging }: TaskCardProps) {
         {agent ? (
           <div className="flex items-center gap-2 min-w-0">
             <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-accent-secondary/20 to-accent-tertiary/10 border border-white/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
-              <AgentAvatar name={agent.name} size={24} enableBlink={false} />
+              {agent.avatar ? (
+                <img src={agent.avatar} alt="" className="w-full h-full rounded-lg object-cover" />
+              ) : (
+                <AgentAvatar name={agent.name} size={24} enableBlink={false} />
+              )}
             </div>
             <span className="text-[11px] font-medium text-accent-secondary truncate max-w-[80px]">
               {agent.name}
@@ -172,9 +183,12 @@ function TaskCard({ task, agents, isDragging }: TaskCardProps) {
 interface SortableTaskProps {
   task: Task;
   agents: Agent[];
+  onTaskClick?: (task: Task) => void;
 }
 
-function SortableTask({ task, agents }: SortableTaskProps) {
+function SortableTask({ task, agents, onTaskClick }: SortableTaskProps) {
+  const hasDragged = useRef(false);
+  
   const {
     attributes,
     listeners,
@@ -190,9 +204,32 @@ function SortableTask({ task, agents }: SortableTaskProps) {
     opacity: isDragging ? 0.5 : 1,
   };
 
+  // Track if we're dragging to prevent click on drop
+  const handlePointerDown = () => {
+    hasDragged.current = false;
+  };
+  
+  const handlePointerMove = () => {
+    hasDragged.current = true;
+  };
+
+  const handleClick = () => {
+    // Only trigger click if we didn't drag
+    if (!hasDragged.current && onTaskClick) {
+      onTaskClick(task);
+    }
+  };
+
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      <TaskCard task={task} agents={agents} />
+    <div 
+      ref={setNodeRef} 
+      style={style} 
+      {...attributes} 
+      {...listeners}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+    >
+      <TaskCard task={task} agents={agents} onClick={handleClick} />
     </div>
   );
 }
@@ -201,16 +238,44 @@ interface KanbanColumnProps {
   status: TaskStatus;
   tasks: Task[];
   agents: Agent[];
+  onTaskClick?: (task: Task) => void;
+  // Pagination props (only used for completed column)
+  onLoadMore?: () => void;
+  loadingMore?: boolean;
+  hasMore?: boolean;
 }
 
-function KanbanColumn({ status, tasks, agents }: KanbanColumnProps) {
+function KanbanColumn({ status, tasks, agents, onTaskClick, onLoadMore, loadingMore, hasMore }: KanbanColumnProps) {
   const config = columnConfig[status];
   const Icon = config.icon;
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   
   const { setNodeRef } = useSortable({
     id: status,
     data: { type: 'column' },
   });
+
+  // Infinite scroll detection for completed column
+  const handleScroll = useCallback(() => {
+    if (status !== 'completed' || !onLoadMore || loadingMore || !hasMore) return;
+    
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    // Trigger when scrolled within 100px of the bottom
+    if (scrollHeight - scrollTop - clientHeight < 100) {
+      onLoadMore();
+    }
+  }, [status, onLoadMore, loadingMore, hasMore]);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container || status !== 'completed') return;
+    
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [handleScroll, status]);
 
   return (
     <div 
@@ -226,14 +291,17 @@ function KanbanColumn({ status, tasks, agents }: KanbanColumnProps) {
             {config.title}
           </h3>
           <span className={`ml-auto text-[11px] font-mono font-medium px-2 py-0.5 rounded-md bg-${config.color}/10 text-${config.color}`}>
-            {tasks.length}
+            {tasks.length}{status === 'completed' && hasMore ? '+' : ''}
           </span>
         </div>
       </div>
-      <div className="flex-1 p-2 overflow-y-auto space-y-2 min-h-[200px]">
+      <div 
+        ref={scrollContainerRef}
+        className="flex-1 p-2 overflow-y-auto space-y-2 min-h-[200px]"
+      >
         <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
           {tasks.map(task => (
-            <SortableTask key={task.id} task={task} agents={agents} />
+            <SortableTask key={task.id} task={task} agents={agents} onTaskClick={onTaskClick} />
           ))}
         </SortableContext>
         {tasks.length === 0 && (
@@ -242,6 +310,22 @@ function KanbanColumn({ status, tasks, agents }: KanbanColumnProps) {
               <Icon className="w-8 h-8 mx-auto mb-2 opacity-30" />
               <p>No tasks</p>
             </div>
+          </div>
+        )}
+        {/* Pagination footer for completed column */}
+        {status === 'completed' && tasks.length > 0 && (
+          <div className="pt-2 pb-1">
+            {loadingMore && (
+              <div className="flex items-center justify-center gap-2 py-3 text-accent-muted">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-xs">Loading more...</span>
+              </div>
+            )}
+            {!loadingMore && !hasMore && (
+              <div className="flex items-center justify-center py-3">
+                <span className="text-xs text-accent-muted/60">No more tasks</span>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -267,8 +351,23 @@ function ColumnSkeleton() {
   );
 }
 
-export function KanbanBoard({ kanban, agents, loading, onMoveTask }: KanbanBoardProps) {
+export function KanbanBoard({ 
+  kanban, 
+  agents, 
+  loading, 
+  onMoveTask,
+  loadMoreCompleted,
+  completedLoadingMore,
+  completedHasMore,
+}: KanbanBoardProps) {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleTaskClick = (task: Task) => {
+    setSelectedTask(task);
+    setIsModalOpen(true);
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -338,8 +437,15 @@ export function KanbanBoard({ kanban, agents, loading, onMoveTask }: KanbanBoard
             <KanbanColumn
               key={status}
               status={status}
-              tasks={kanban[status]}
+              tasks={[...kanban[status]].sort((a, b) => 
+                new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+              )}
               agents={agents}
+              onTaskClick={handleTaskClick}
+              // Pass pagination props only for completed column
+              onLoadMore={status === 'completed' ? loadMoreCompleted : undefined}
+              loadingMore={status === 'completed' ? completedLoadingMore : undefined}
+              hasMore={status === 'completed' ? completedHasMore : undefined}
             />
           ))}
         </div>
@@ -349,6 +455,14 @@ export function KanbanBoard({ kanban, agents, loading, onMoveTask }: KanbanBoard
           )}
         </DragOverlay>
       </DndContext>
+
+      {/* Task Detail Modal */}
+      <TaskDetailModal
+        task={selectedTask}
+        agents={agents}
+        open={isModalOpen}
+        onOpenChange={setIsModalOpen}
+      />
     </div>
   );
 }

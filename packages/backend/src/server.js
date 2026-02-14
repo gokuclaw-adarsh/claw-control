@@ -160,13 +160,15 @@ fastify.register(async function routes(fastify) {
  */
 fastify.get('/api/tasks', {
   schema: {
-    description: 'Retrieve all tasks with optional filters',
+    description: 'Retrieve all tasks with optional filters and pagination',
     tags: ['Tasks'],
     querystring: {
       type: 'object',
       properties: {
         status: { type: 'string', enum: ['backlog', 'todo', 'in_progress', 'review', 'completed'] },
-        agent_id: { type: 'integer' }
+        agent_id: { type: 'integer' },
+        limit: { type: 'integer', minimum: 1, maximum: 100, description: 'Maximum number of tasks to return' },
+        offset: { type: 'integer', minimum: 0, description: 'Number of tasks to skip' }
       }
     },
     response: {
@@ -177,7 +179,7 @@ fastify.get('/api/tasks', {
     }
   }
 }, async (request, reply) => {
-  const { status, agent_id } = request.query;
+  const { status, agent_id, limit, offset } = request.query;
   let query = 'SELECT * FROM tasks';
   const params = [];
   const conditions = [];
@@ -195,6 +197,16 @@ fastify.get('/api/tasks', {
     query += ' WHERE ' + conditions.join(' AND ');
   }
   query += ' ORDER BY created_at DESC';
+
+  // Add pagination if limit is specified
+  if (limit) {
+    params.push(limit);
+    query += ` LIMIT ${param(params.length)}`;
+    if (offset) {
+      params.push(offset);
+      query += ` OFFSET ${param(params.length)}`;
+    }
+  }
 
   const { rows } = await dbAdapter.query(query, params);
   return rows;
@@ -907,13 +919,14 @@ fastify.delete('/api/agents/:id', {
  */
 fastify.get('/api/messages', {
   schema: {
-    description: 'Retrieve agent messages with optional filters',
+    description: 'Retrieve agent messages with optional filters and pagination',
     tags: ['Messages'],
     querystring: {
       type: 'object',
       properties: {
         agent_id: { type: 'integer', description: 'Filter by agent ID' },
-        limit: { type: 'integer', default: 50, description: 'Maximum messages to return' }
+        limit: { type: 'integer', default: 50, description: 'Maximum messages to return' },
+        offset: { type: 'integer', minimum: 0, description: 'Number of messages to skip' }
       }
     },
     response: {
@@ -924,7 +937,7 @@ fastify.get('/api/messages', {
     }
   }
 }, async (request, reply) => {
-  const { agent_id, limit = 50 } = request.query;
+  const { agent_id, limit = 50, offset } = request.query;
   
   let query = 'SELECT m.*, a.name as agent_name FROM agent_messages m LEFT JOIN agents a ON m.agent_id = a.id';
   const params = [];
@@ -934,8 +947,15 @@ fastify.get('/api/messages', {
     query += ` WHERE m.agent_id = ${param(params.length)}`;
   }
   
+  query += ' ORDER BY m.created_at DESC';
+  
   params.push(parseInt(limit));
-  query += ` ORDER BY m.created_at DESC LIMIT ${param(params.length)}`;
+  query += ` LIMIT ${param(params.length)}`;
+  
+  if (offset) {
+    params.push(parseInt(offset));
+    query += ` OFFSET ${param(params.length)}`;
+  }
 
   const { rows } = await dbAdapter.query(query, params);
   return rows;

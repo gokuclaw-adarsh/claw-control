@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { MessageSquare, PanelRightClose, ChevronDown } from 'lucide-react';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { MessageSquare, ChevronLeft, ChevronRight, ChevronDown, Loader2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import type { Message } from '../types';
 import { AgentAvatar } from './AgentAvatar';
@@ -7,7 +7,11 @@ import { AgentAvatar } from './AgentAvatar';
 interface AgentChatProps {
   messages: Message[];
   loading?: boolean;
-  onCollapse?: () => void;
+  loadingMore?: boolean;
+  hasMore?: boolean;
+  loadMore?: () => void;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 function formatTimestamp(timestamp: string): string {
@@ -99,10 +103,6 @@ function getAgentColor(agentId: string) {
   return agentColors[agentId] || defaultColor;
 }
 
-function getAgentInitial(name: string): string {
-  return name.charAt(0).toUpperCase();
-}
-
 function ChatBubble({ message }: { message: Message }) {
   const colors = getAgentColor(message.agentId);
   
@@ -183,18 +183,39 @@ function MessageSkeleton() {
   );
 }
 
-export function AgentChat({ messages, loading, onCollapse }: AgentChatProps) {
+export function AgentChat({ messages, loading, loadingMore, hasMore, loadMore, collapsed, onToggleCollapse }: AgentChatProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const prevScrollHeightRef = useRef<number>(0);
+  const isLoadingMoreRef = useRef(false);
 
-  // Detect scroll position
-  const handleScroll = () => {
+  // Detect scroll position and trigger lazy loading
+  const handleScroll = useCallback(() => {
     if (!containerRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
     setShowScrollButton(distanceFromBottom > 100);
-  };
+    
+    // Load more when scrolled near top (< 100px from top)
+    if (scrollTop < 100 && hasMore && loadMore && !loadingMore && !isLoadingMoreRef.current) {
+      isLoadingMoreRef.current = true;
+      prevScrollHeightRef.current = scrollHeight;
+      loadMore();
+    }
+  }, [hasMore, loadMore, loadingMore]);
+
+  // Preserve scroll position after loading more messages
+  useEffect(() => {
+    if (!loadingMore && isLoadingMoreRef.current && containerRef.current) {
+      const newScrollHeight = containerRef.current.scrollHeight;
+      const scrollDiff = newScrollHeight - prevScrollHeightRef.current;
+      if (scrollDiff > 0) {
+        containerRef.current.scrollTop += scrollDiff;
+      }
+      isLoadingMoreRef.current = false;
+    }
+  }, [loadingMore, messages.length]);
 
   // Scroll to bottom
   const scrollToBottom = () => {
@@ -203,10 +224,33 @@ export function AgentChat({ messages, loading, onCollapse }: AgentChatProps) {
 
   // Auto-scroll on new messages (only if near bottom)
   useEffect(() => {
-    if (!showScrollButton) {
+    if (!showScrollButton && !isLoadingMoreRef.current) {
       scrollToBottom();
     }
   }, [messages.length]);
+
+  // Collapsed view - thin bar with icon
+  if (collapsed) {
+    return (
+      <div className="h-full flex flex-col items-center py-4 bg-claw-surface/30 backdrop-blur-sm">
+        <button
+          onClick={onToggleCollapse}
+          className="w-10 h-10 rounded-xl bg-accent-secondary/10 border border-accent-secondary/20 flex items-center justify-center hover:bg-accent-secondary/20 transition-all duration-200 group hover:scale-105"
+          title="Expand Agent Feed"
+        >
+          <ChevronLeft className="w-4 h-4 text-accent-secondary group-hover:text-white transition-colors" />
+        </button>
+        <div className="mt-4 w-10 h-10 rounded-xl bg-gradient-to-br from-accent-secondary/20 to-accent-primary/20 border border-accent-secondary/30 flex items-center justify-center relative shadow-lg">
+          <MessageSquare className="w-4 h-4 text-accent-secondary" />
+          {messages.length > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center bg-gradient-to-r from-accent-secondary to-accent-primary text-white shadow-lg">
+              {messages.length > 99 ? '99+' : messages.length}
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -237,9 +281,13 @@ export function AgentChat({ messages, loading, onCollapse }: AgentChatProps) {
       <div className="p-4 border-b border-white/5 bg-claw-surface/50 backdrop-blur-sm">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-accent-secondary/20 to-accent-primary/20 border border-accent-secondary/30 flex items-center justify-center shadow-lg">
-              <MessageSquare className="w-4 h-4 text-accent-secondary" />
-            </div>
+            <button
+              onClick={onToggleCollapse}
+              className="w-9 h-9 rounded-xl bg-gradient-to-br from-accent-secondary/20 to-accent-primary/20 border border-accent-secondary/30 flex items-center justify-center hover:from-accent-secondary/30 hover:to-accent-primary/30 transition-all duration-200 group shadow-lg hover:scale-105"
+              title="Collapse Agent Feed"
+            >
+              <ChevronRight className="w-4 h-4 text-accent-secondary group-hover:text-white transition-colors" />
+            </button>
             <div>
               <h2 className="text-sm font-semibold text-white flex items-center gap-2">
                 Agent Chat
@@ -251,20 +299,9 @@ export function AgentChat({ messages, loading, onCollapse }: AgentChatProps) {
               <p className="text-[10px] text-accent-muted">Live conversation</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-mono text-white/80 bg-white/5 px-2.5 py-1 rounded-lg border border-white/10">
-              {messages.length} {messages.length === 1 ? 'msg' : 'msgs'}
-            </span>
-            {onCollapse && (
-              <button
-                onClick={onCollapse}
-                className="w-8 h-8 rounded-lg hover:bg-white/5 flex items-center justify-center transition-colors group"
-                title="Collapse Agent Chat"
-              >
-                <PanelRightClose className="w-4 h-4 text-accent-muted group-hover:text-white transition-colors" />
-              </button>
-            )}
-          </div>
+          <span className="text-xs font-mono text-white/80 bg-white/5 px-2.5 py-1 rounded-lg border border-white/10">
+            {messages.length} {messages.length === 1 ? 'msg' : 'msgs'}
+          </span>
         </div>
       </div>
       
@@ -284,6 +321,19 @@ export function AgentChat({ messages, loading, onCollapse }: AgentChatProps) {
           </div>
         ) : (
           <div className="py-2">
+            {/* Loading more indicator at top */}
+            {loadingMore && (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="w-5 h-5 text-accent-secondary animate-spin" />
+                <span className="ml-2 text-xs text-accent-muted">Loading older messages...</span>
+              </div>
+            )}
+            {/* Show "no more" indicator when at the beginning */}
+            {!hasMore && messages.length > 0 && (
+              <div className="flex items-center justify-center py-3">
+                <span className="text-[10px] text-accent-muted/60 font-mono">— Beginning of conversation —</span>
+              </div>
+            )}
             {messages.map(message => (
               <ChatBubble key={message.id} message={message} />
             ))}

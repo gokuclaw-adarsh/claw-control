@@ -105,22 +105,49 @@ export function useAgents() {
   return { agents, setAgents, loading, error, refetch: fetchAgents };
 }
 
+/** Default page size for completed tasks pagination */
+const COMPLETED_PAGE_SIZE = 50;
+
 /**
  * Hook for fetching and managing tasks with Kanban board structure.
- * @returns Object with tasks, kanban data, loading state, and move handler
+ * Includes pagination for the completed column with infinite scroll.
+ * @returns Object with tasks, kanban data, loading state, pagination state, and handlers
  */
 export function useTasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Completed column pagination state
+  const [completedOffset, setCompletedOffset] = useState(0);
+  const [completedHasMore, setCompletedHasMore] = useState(true);
+  const [completedLoadingMore, setCompletedLoadingMore] = useState(false);
 
   const fetchTasks = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/tasks`);
-      if (!res.ok) throw new Error('Failed to fetch tasks');
-      const data = await res.json();
-      const rawTasks = Array.isArray(data) ? data : data.tasks || [];
-      setTasks(rawTasks.map(transformTask));
+      // Fetch non-completed tasks (all of them)
+      const nonCompletedRes = await fetch(`${API_BASE}/api/tasks`);
+      if (!nonCompletedRes.ok) throw new Error('Failed to fetch tasks');
+      const nonCompletedData = await nonCompletedRes.json();
+      const allTasks = Array.isArray(nonCompletedData) ? nonCompletedData : nonCompletedData.tasks || [];
+      
+      // Separate completed and non-completed
+      const nonCompleted = allTasks.filter((t: Record<string, unknown>) => t.status !== 'completed');
+      
+      // Fetch first page of completed tasks with pagination
+      const completedRes = await fetch(`${API_BASE}/api/tasks?status=completed&limit=${COMPLETED_PAGE_SIZE}&offset=0`);
+      if (!completedRes.ok) throw new Error('Failed to fetch completed tasks');
+      const completedData = await completedRes.json();
+      const completedTasks = Array.isArray(completedData) ? completedData : completedData.tasks || [];
+      
+      // Combine non-completed with paginated completed
+      const combined = [...nonCompleted, ...completedTasks];
+      setTasks(combined.map(transformTask));
+      
+      // Update pagination state
+      setCompletedOffset(completedTasks.length);
+      setCompletedHasMore(completedTasks.length >= COMPLETED_PAGE_SIZE);
+      
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -132,6 +159,42 @@ export function useTasks() {
   useEffect(() => {
     fetchTasks();
   }, [fetchTasks]);
+
+  /**
+   * Load more completed tasks for infinite scroll.
+   * Appends older completed tasks to the existing list.
+   */
+  const loadMoreCompleted = useCallback(async () => {
+    if (completedLoadingMore || !completedHasMore) return;
+    
+    setCompletedLoadingMore(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/tasks?status=completed&limit=${COMPLETED_PAGE_SIZE}&offset=${completedOffset}`);
+      if (!res.ok) throw new Error('Failed to fetch more completed tasks');
+      const data = await res.json();
+      const newCompleted = Array.isArray(data) ? data : data.tasks || [];
+      
+      if (newCompleted.length < COMPLETED_PAGE_SIZE) {
+        setCompletedHasMore(false);
+      }
+      
+      if (newCompleted.length > 0) {
+        const transformed = newCompleted.map(transformTask);
+        setTasks(prev => {
+          // Filter out duplicates and append new completed tasks
+          const existingIds = new Set(prev.map(t => t.id));
+          const uniqueNew = transformed.filter((t: Task) => !existingIds.has(t.id));
+          return [...prev, ...uniqueNew];
+        });
+        setCompletedOffset(prev => prev + newCompleted.length);
+      }
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setCompletedLoadingMore(false);
+    }
+  }, [completedLoadingMore, completedHasMore, completedOffset]);
 
   /** Kanban board data structure with tasks grouped by status */
   const kanban: KanbanData = {
@@ -163,23 +226,41 @@ export function useTasks() {
     }
   }, [fetchTasks]);
 
-  return { tasks, setTasks, kanban, loading, error, refetch: fetchTasks, moveTask };
+  return { 
+    tasks, 
+    setTasks, 
+    kanban, 
+    loading, 
+    error, 
+    refetch: fetchTasks, 
+    moveTask,
+    // Completed pagination exports
+    loadMoreCompleted,
+    completedLoadingMore,
+    completedHasMore,
+  };
 }
 
+/** Default page size for messages */
+const MESSAGE_PAGE_SIZE = 40;
+
 /**
- * Hook for fetching and managing agent messages.
+ * Hook for fetching and managing agent messages with pagination.
  * Includes polling every 5 seconds for realtime updates.
- * @returns Object with messages array, loading state, and add handler
+ * @returns Object with messages array, loading state, pagination state, and handlers
  */
 export function useMessages() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [totalLoaded, setTotalLoaded] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const lastIdRef = useRef<string | null>(null);
 
   const fetchMessages = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/messages`);
+      const res = await fetch(`${API_BASE}/api/messages?limit=${MESSAGE_PAGE_SIZE}`);
       if (!res.ok) throw new Error('Failed to fetch messages');
       const data = await res.json();
       const rawMessages = Array.isArray(data) ? data : data.messages || [];
@@ -190,7 +271,10 @@ export function useMessages() {
         lastIdRef.current = transformed[transformed.length - 1].id;
       }
       
-      setMessages(transformed);
+      // Reverse to chronological order (oldest first, newest last) for Slack-style display
+      setMessages(transformed.reverse());
+      setTotalLoaded(transformed.length);
+      setHasMore(transformed.length >= MESSAGE_PAGE_SIZE);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -198,6 +282,44 @@ export function useMessages() {
       setLoading(false);
     }
   }, []);
+
+  /**
+   * Load more (older) messages with offset-based pagination.
+   * Prepends older messages to the beginning of the array.
+   */
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+    
+    setLoadingMore(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/messages?limit=${MESSAGE_PAGE_SIZE}&offset=${totalLoaded}`);
+      if (!res.ok) throw new Error('Failed to fetch more messages');
+      const data = await res.json();
+      const rawMessages = Array.isArray(data) ? data : data.messages || [];
+      const transformed = rawMessages.map(transformMessage);
+      
+      if (transformed.length < MESSAGE_PAGE_SIZE) {
+        setHasMore(false);
+      }
+      
+      if (transformed.length > 0) {
+        // Reverse to chronological order (oldest first)
+        const chronological: Message[] = transformed.reverse();
+        setMessages(prev => {
+          // Filter duplicates and prepend older messages
+          const existingIds = new Set(prev.map(m => m.id));
+          const newMessages = chronological.filter((m: Message) => !existingIds.has(m.id));
+          return [...newMessages, ...prev];
+        });
+        setTotalLoaded(prev => prev + transformed.length);
+      }
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadingMore, hasMore, totalLoaded]);
 
   // Initial fetch
   useEffect(() => {
@@ -224,7 +346,18 @@ export function useMessages() {
     });
   }, []);
 
-  return { messages, setMessages, loading, error, refetch: fetchMessages, addMessage };
+  return { 
+    messages, 
+    setMessages, 
+    loading, 
+    loadingMore,
+    hasMore,
+    totalLoaded,
+    error, 
+    refetch: fetchMessages, 
+    addMessage,
+    loadMore
+  };
 }
 
 /**
