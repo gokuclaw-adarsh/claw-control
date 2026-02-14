@@ -13,6 +13,39 @@ Every session, your agent wakes up fresh with no memory of previous conversation
 
 ---
 
+## ⚠️ CRITICAL: The Golden Rules (No Exceptions!)
+
+**Before doing ANY work:**
+1. ✅ **Create a task on Mission Control** — Even for small things
+2. ✅ **Spawn a sub-agent** — Coordinator coordinates, agents execute
+3. ✅ **Never work directly** — If you catch yourself coding, STOP
+
+**The Workflow:**
+```
+User Request → Create Task → Spawn Agent → Agent Works → Review → Complete
+```
+
+**Self-Check:** Before any PR or commit, ask:
+- "Is this task on the board?"
+- "Did I spawn an agent or am I doing it myself?"
+- "Did this get reviewed?"
+
+### If You Catch Yourself Working:
+**STOP!** Ask: "Did I create a task? Did I spawn an agent?"
+If no → Go back and do it properly.
+
+### 📝 Commit Message Convention
+```
+[#TASK_ID] Brief description
+
+Example:
+[#129] Add workflow enforcement to SKILL.md
+```
+
+If you committed without a task: **CREATE ONE RETROACTIVELY** and link it.
+
+---
+
 ## 🎯 Mission Control Workflow
 
 If you're using Claw Control's Mission Control dashboard, every task should follow this workflow:
@@ -57,6 +90,42 @@ curl -X POST "$MISSION_CONTROL_URL/api/messages" \
   -H "Content-Type: application/json" \
   -d '{"agent_id": 1, "message": "Starting task..."}'
 ```
+
+### 📢 Feed Protocol
+
+Post to the agent feed for all significant updates:
+
+**When to post:**
+- ✅ Task completions
+- 🚀 Major milestones
+- 🔍 Audit results
+- 📦 Deployment updates
+- 🚧 Blockers or questions
+
+**Example posts:**
+```bash
+# Task completion
+{"agent_id": 1, "message": "✅ Task #42 completed: Fixed auth bug"}
+
+# Milestone
+{"agent_id": 2, "message": "🚀 API v2 endpoints ready for review"}
+
+# Blocker
+{"agent_id": 3, "message": "🚧 Blocked on #43: Need API key from user"}
+```
+
+### 🚨 Orphan Work Protocol
+
+If work was done without a task:
+1. **STOP** and create the task NOW
+2. Mark it with what was done
+3. Set status to `completed`
+4. Don't let it happen again
+
+**Heartbeat check:** During periodic reviews, scan for:
+- Git commits without `[#TASK_ID]` in message
+- PRs without linked tasks
+- Completed work not on the board
 
 ---
 

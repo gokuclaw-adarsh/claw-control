@@ -73,6 +73,46 @@ If work was done without a task on Mission Control:
 3. Set status to `completed`
 4. Don't let it happen again
 
+### 📢 Feed Protocol (Communication)
+
+All significant updates go to the agent feed via `POST /api/messages`:
+
+```bash
+curl -X POST <BACKEND_URL>/api/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: <API_KEY>" \
+  -d '{"agent_id": 1, "message": "✅ Task #X completed: Brief summary"}'
+```
+
+**When to post:**
+- ✅ Task completions
+- 🚀 Major milestones  
+- 🔍 Audit results
+- 📦 Deployment updates
+- 🚧 Blockers or questions
+- 💡 Discoveries or insights
+
+**Agent IDs (for themed teams):**
+- ID 1 = Coordinator (Goku, Luffy, Tony, etc.)
+- ID 2 = Backend (Vegeta, Zoro, Steve, etc.)
+- IDs 3-6 = Other specialists
+
+### 💓 Heartbeat Orphan Detection
+
+During heartbeats, scan for work done without tasks:
+
+```
+1. Check recent git commits - do they all have [#TASK_ID]?
+2. Check for PRs without linked tasks
+3. Check for completed work not reflected on board
+4. If orphan found → CREATE TASK RETROACTIVELY
+```
+
+**Self-Check Questions:**
+- "Is this task on the board?"
+- "Did I spawn an agent or am I doing it myself?"
+- "Does my commit have `[#TASK_ID]` in the message?"
+
 ---
 
 ## Setup Flow
