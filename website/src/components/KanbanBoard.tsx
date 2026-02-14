@@ -378,7 +378,9 @@ export function KanbanBoard({ kanban, agents, loading, onMoveTask }: KanbanBoard
             <KanbanColumn
               key={status}
               status={status}
-              tasks={kanban[status]}
+              tasks={[...kanban[status]].sort((a, b) => 
+                new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+              )}
               agents={agents}
               onTaskClick={handleTaskClick}
             />
