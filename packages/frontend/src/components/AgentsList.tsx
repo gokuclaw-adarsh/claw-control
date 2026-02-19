@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { Bot, Circle } from 'lucide-react';
 import type { Agent, AgentStatus } from '../types';
 import { AgentAvatar } from './AgentAvatar';
+import { AgentProfileModal } from './AgentProfileModal';
 
 interface AgentsListProps {
   agents: Agent[];
@@ -50,15 +52,21 @@ function StatusIndicator({ status }: { status: AgentStatus }) {
   );
 }
 
-function AgentCard({ agent }: { agent: Agent }) {
+function AgentCard({ agent, onClick }: { agent: Agent; onClick: () => void }) {
   return (
-    <div className={`
-      p-4 rounded-xl border border-white/5 
-      bg-gradient-to-br from-claw-card to-claw-surface 
-      hover:border-white/10 hover:shadow-card-hover
-      active:scale-[0.98] transition-all duration-200 
-      group touch-manipulation animate-in
-    `}>
+    <div
+      className={`
+        p-4 rounded-xl border border-white/5 
+        bg-gradient-to-br from-claw-card to-claw-surface 
+        hover:border-white/10 hover:shadow-card-hover
+        active:scale-[0.98] transition-all duration-200 
+        group touch-manipulation animate-in cursor-pointer
+      `}
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClick(); }}
+    >
       <div className="flex items-start gap-3">
         <div className={`
           w-12 h-12 rounded-xl 
@@ -104,6 +112,7 @@ function AgentCardSkeleton() {
 }
 
 export function AgentsList({ agents, loading }: AgentsListProps) {
+  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   if (loading) {
     return (
       <div className="h-full flex flex-col">
@@ -158,11 +167,18 @@ export function AgentsList({ agents, loading }: AgentsListProps) {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 gap-3">
             {agents.map(agent => (
-              <AgentCard key={agent.id} agent={agent} />
+              <AgentCard key={agent.id} agent={agent} onClick={() => setSelectedAgent(agent)} />
             ))}
           </div>
         )}
       </div>
+
+      {selectedAgent && (
+        <AgentProfileModal
+          agent={selectedAgent}
+          onClose={() => setSelectedAgent(null)}
+        />
+      )}
     </div>
   );
 }

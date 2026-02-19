@@ -31,6 +31,22 @@ export interface Agent {
   description?: string;
   status: AgentStatus;
   avatar?: string;
+  /** Agent biography */
+  bio?: string;
+  /** Guiding principles (JSON array) */
+  principles?: string;
+  /** Critical actions (JSON array) */
+  critical_actions?: string;
+  /** Communication style description */
+  communication_style?: string;
+  /** What this agent does (JSON array) */
+  dos?: string;
+  /** What this agent does NOT do (JSON array) */
+  donts?: string;
+  /** BMAD framework source reference */
+  bmad_source?: string;
+  /** Agent role */
+  role?: string;
 }
 
 /** Message entity representing an agent's activity log entry */

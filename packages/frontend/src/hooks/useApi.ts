@@ -54,6 +54,14 @@ export function transformAgent(apiAgent: Record<string, unknown>): Agent {
     description: String(apiAgent.description || ''),
     status: (apiAgent.status as Agent['status']) || 'idle',
     avatar: apiAgent.avatar ? String(apiAgent.avatar) : undefined,
+    bio: apiAgent.bio ? String(apiAgent.bio) : undefined,
+    principles: apiAgent.principles ? String(apiAgent.principles) : undefined,
+    critical_actions: apiAgent.critical_actions ? String(apiAgent.critical_actions) : undefined,
+    communication_style: apiAgent.communication_style ? String(apiAgent.communication_style) : undefined,
+    dos: apiAgent.dos ? String(apiAgent.dos) : undefined,
+    donts: apiAgent.donts ? String(apiAgent.donts) : undefined,
+    bmad_source: apiAgent.bmad_source ? String(apiAgent.bmad_source) : undefined,
+    role: apiAgent.role ? String(apiAgent.role) : undefined,
   };
 }
 
@@ -72,6 +80,23 @@ export function transformMessage(apiMsg: Record<string, unknown>): Message {
     timestamp: ts,
     type: (apiMsg.type as Message['type']) ?? 'info',
   };
+}
+
+/**
+ * Fetches a single agent by ID with all profile fields.
+ * @param agentId - The agent ID to fetch
+ * @returns Promise resolving to the Agent or null if not found
+ */
+export async function fetchAgentById(agentId: string): Promise<Agent | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/agents/${agentId}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const raw = data.data || data;
+    return transformAgent(raw);
+  } catch {
+    return null;
+  }
 }
 
 /**
