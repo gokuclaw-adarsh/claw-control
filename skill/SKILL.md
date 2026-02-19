@@ -105,10 +105,15 @@ curl -X POST <BACKEND_URL>/api/messages \
 - 🚧 Blockers or questions
 - 💡 Discoveries or insights
 
-**Agent IDs (for themed teams):**
+**Agent IDs (for themed teams — 8 default agents):**
 - ID 1 = Coordinator (Goku, Luffy, Tony, etc.)
-- ID 2 = Backend (Vegeta, Zoro, Steve, etc.)
-- IDs 3-6 = Other specialists
+- ID 2 = Backend Developer (Vegeta, Zoro, Steve, etc.)
+- ID 3 = System Architect
+- ID 4 = Research Analyst
+- ID 5 = Product Manager
+- ID 6 = UI/UX Designer
+- ID 7 = QA Engineer (Adversarial Reviewer)
+- ID 8 = Deployment Specialist
 
 ### 💓 Heartbeat Orphan Detection
 
@@ -160,8 +165,8 @@ docker compose logs -f
 
 **Services started:**
 - Backend API on port 3001
-- Frontend on port 3000
-- PostgreSQL database (or use external)
+- Frontend on port 5173
+- PostgreSQL database on port 5432 (or use external)
 
 **To update:**
 ```bash
@@ -524,19 +529,19 @@ Ask: **"Now for the fun part! Let's theme your agent team. Name ANY series, movi
 
 **Popular examples (but NOT limited to these):**
 
-| Theme | Coordinator | Backend | DevOps | Research | Architecture | Deployment |
-|-------|-------------|---------|--------|----------|--------------|------------|
-| 🐉 Dragon Ball Z | Goku | Vegeta | Bulma | Gohan | Piccolo | Trunks |
-| ☠️ One Piece | Luffy | Zoro | Nami | Robin | Franky | Sanji |
-| 🦸 Marvel | Tony | Steve | Natasha | Bruce | Thor | Peter |
-| 🧪 Breaking Bad | Walter | Jesse | Mike | Gale | Gus | Saul |
-| ⚔️ Game of Thrones | Jon | Tyrion | Arya | Sam | Bran | Daenerys |
-| 🍥 Naruto | Naruto | Sasuke | Sakura | Shikamaru | Kakashi | Itachi |
+| Theme | Coordinator | Developer | Architect | Research | PM | Designer | QA | Deploy |
+|-------|-------------|-----------|-----------|----------|-----|----------|-----|--------|
+| 🐉 Dragon Ball Z | Goku | Vegeta | Piccolo | Gohan | Bulma | Android 18 | Cell | Trunks |
+| ☠️ One Piece | Luffy | Zoro | Franky | Robin | Nami | Usopp | Jinbe | Sanji |
+| 🦸 Marvel | Tony | Steve | Bruce | Natasha | Pepper | Peter | Vision | Thor |
+| 🧪 Breaking Bad | Walter | Jesse | Mike | Gale | Lydia | Skinny Pete | Hank | Saul |
+| ⚔️ Game of Thrones | Jon | Arya | Tyrion | Sam | Sansa | Bran | Varys | Daenerys |
+| 🍥 Naruto | Naruto | Sasuke | Kakashi | Shikamaru | Tsunade | Sakura | Neji | Itachi |
 
 **When user names ANY series:**
-1. Pick 6 iconic characters that fit the roles
-2. Match personalities to roles (e.g., smart character → Research, leader → Coordinator)
-3. Generate the AGENT_MAPPING with IDs 1-6
+1. Pick 8 iconic characters that fit the roles
+2. Match personalities to roles (e.g., smart character → Research, leader → Coordinator, skeptical → QA)
+3. Generate the AGENT_MAPPING with IDs 1-8
 4. Confirm with the user before proceeding
 
 **Example - User says "Avatar: The Last Airbender":**
@@ -546,11 +551,13 @@ Great choice! Here's your Team Avatar:
 | Role | Character | Why |
 |------|-----------|-----|
 | Coordinator | Aang | The Avatar, brings balance |
-| Backend | Toph | Earthbender, solid foundation |
-| DevOps | Katara | Waterbender, keeps things flowing |
+| Developer | Toph | Earthbender, solid foundation |
+| Architect | Iroh | Wise, sees the big picture |
 | Research | Sokka | Strategist, plans everything |
-| Architecture | Iroh | Wise, sees the big picture |
-| Deployment | Zuko | Redeemed, handles the heat |
+| PM | Katara | Waterbender, keeps things flowing |
+| Designer | Suki | Kyoshi warrior, visual precision |
+| QA | Azula | Perfectionist, finds every flaw |
+| Deploy | Zuko | Redeemed, handles the heat |
 
 Sound good?
 ```
@@ -568,13 +575,14 @@ curl -X PUT <BACKEND_URL>/api/agents/1 \
   -H "x-api-key: <API_KEY>" \
   -d '{"name": "Goku", "role": "Coordinator"}'
 
-# Update agent 2 (Backend)
+# Update agent 2 (Backend Developer)
 curl -X PUT <BACKEND_URL>/api/agents/2 \
   -H "Content-Type: application/json" \
   -H "x-api-key: <API_KEY>" \
-  -d '{"name": "Vegeta", "role": "Backend"}'
+  -d '{"name": "Vegeta", "role": "Backend Engineer"}'
 
-# Repeat for agents 3-6 with the theme characters
+# Repeat for agents 3-8 with the theme characters
+# Agent 3 = Architect, 4 = Research, 5 = PM, 6 = Designer, 7 = QA, 8 = Deploy
 ```
 
 **Verify changes applied:**
@@ -1070,11 +1078,11 @@ curl -X POST <BACKEND_URL>/api/messages \
   -H "x-api-key: <API_KEY>" \
   -d '{
     "agent_id": 1,
-    "content": "Hey @Vegeta, I need you to review this PR: #42"
+    "message": "Hey @Vegeta, I need you to review this PR: #42"
   }'
 ```
 
-The backend parses `@AgentName` in the content and records which agents were mentioned.
+The backend parses `@AgentName` in the message and records which agents were mentioned.
 
 **Checking your mentions:**
 ```bash
@@ -1088,14 +1096,14 @@ Returns messages where the specified agent was @mentioned.
 **Real-time mention notifications (SSE):**
 ```bash
 # Subscribe to real-time events
-curl -N "<BACKEND_URL>/api/events"
+curl -N "<BACKEND_URL>/api/stream"
 ```
 
 Events emitted:
-- `message:created` — New message posted
-- `agent:mentioned` — An agent was @mentioned (includes agent_id and message)
-- `task:updated` — Task status changed
-- `agent:status` — Agent status changed (working/idle)
+- `message-created` — New message posted (includes mentioned_agent_ids)
+- `agent-mentioned` — An agent was @mentioned (includes agent_id and message)
+- `task-created` / `task-updated` / `task-deleted` — Task lifecycle
+- `agent-created` / `agent-updated` / `agent-deleted` — Agent lifecycle
 
 ### Agent Heartbeat Mention Check
 
@@ -1223,16 +1231,18 @@ Add this section (customize for their theme):
    - Only {{COORDINATOR}} can mark tasks complete
    - Work not up to standard → back to todo with feedback
 
-### Agent Roster
+### Agent Roster (8 Default Agents)
 
 | Agent | Role | Specialization |
 |-------|------|----------------|
 | {{COORDINATOR}} | Coordinator | Delegation, verification, user comms |
-| {{BACKEND}} | Backend | APIs, databases, server code |
-| {{DEVOPS}} | DevOps | Infrastructure, deployments, CI/CD |
-| {{RESEARCH}} | Research | Analysis, documentation, research |
-| {{ARCHITECTURE}} | Architecture | System design, planning, strategy |
-| {{DEPLOYMENT}} | Deployment | Releases, hotfixes, urgent deploys |
+| {{DEVELOPER}} | Backend Engineer | APIs, databases, code reviews |
+| {{ARCHITECT}} | System Architect | System design, ADRs, tech decisions |
+| {{RESEARCHER}} | Research Analyst | Analysis, documentation, market research |
+| {{PM}} | Product Manager | PRDs, user stories, requirements |
+| {{DESIGNER}} | UI/UX Designer | User research, wireframes, visual specs |
+| {{QA}} | QA Engineer | Adversarial reviews, testing, quality gates |
+| {{DEPLOYMENT}} | Deployment Specialist | Releases, hotfixes, CI/CD pipelines |
 
 ### ⚡ High-Agency Protocol (ALL AGENTS)
 
@@ -1255,12 +1265,14 @@ Do NOT proceed alone—violate this and the task fails.
 ```
 
 **Agent-Specific Adaptations:**
-- **{{COORDINATOR}} (Coordinator):** Delegates ALL work, never executes. **ENFORCES team rules** — if any agent acts solo, pause and remind them to delegate/query/verify. **ENFORCES the Kanban board** — ALL work goes through the board, no exceptions. If work isn't tracked, stop and create the task first.
-- **{{BACKEND}} (Backend):** May query {{ARCHITECTURE}} for design, {{RESEARCH}} for research
-- **{{DEVOPS}} (DevOps):** May query {{BACKEND}} for API contracts, {{DEPLOYMENT}} for timing
-- **{{RESEARCH}} (Research):** May query {{ARCHITECTURE}} for strategic context
-- **{{ARCHITECTURE}} (Architecture):** May query {{RESEARCH}} for research, all agents for constraints
-- **{{DEPLOYMENT}} (Deployment):** May query {{DEVOPS}} for infra, {{BACKEND}} for code readiness
+- **{{COORDINATOR}} (Coordinator):** Delegates ALL work, never executes. **ENFORCES team rules** — if any agent acts solo, pause and remind them to delegate/query/verify. **ENFORCES the Kanban board** — ALL work goes through the board, no exceptions.
+- **{{DEVELOPER}} (Backend):** May query {{ARCHITECT}} for design, {{RESEARCHER}} for research
+- **{{ARCHITECT}} (Architect):** May query {{RESEARCHER}} for research, all agents for constraints
+- **{{RESEARCHER}} (Research):** May query {{ARCHITECT}} for strategic context, {{PM}} for product context
+- **{{PM}} (Product Manager):** May query {{RESEARCHER}} for market data, {{DESIGNER}} for UX
+- **{{DESIGNER}} (UI/UX):** May query {{ARCHITECT}} for tech constraints, {{PM}} for requirements
+- **{{QA}} (QA Engineer):** Runs adversarial reviews on ALL work. MUST find 3+ issues per review.
+- **{{DEPLOYMENT}} (Deployment):** May query {{DEVELOPER}} for code readiness, runs CI/CD
 
 ### Reporting Protocol
 
@@ -1373,10 +1385,10 @@ curl -X POST <BACKEND_URL>/api/messages \
   -H "x-api-key: <API_KEY>" \
   -d '{
     "agent_id": 1,
-    "content": "# 👋 Meet Your Team!\n\n## The Squad\n- **[Coordinator Name]** (me!) - Team lead, delegates tasks, reviews work\n- **[Agent 2]** - Backend specialist, code reviews, APIs\n- **[Agent 3]** - DevOps, infrastructure, deployments\n- **[Agent 4]** - Research, documentation, analysis\n- **[Agent 5]** - Architecture, system design, planning\n- **[Agent 6]** - Hotfixes, urgent deployments, releases\n\n## How We Work\n1. All tasks go through this board\n2. I delegate to the right specialist\n3. They do the work and report back\n4. I review and mark complete\n\n## Want More Agents?\nJust tell me: *\"I need a specialist for [X]\"* and I will create one!\n\nExamples:\n- \"Add a security specialist\"\n- \"I need someone for UI/UX\"\n- \"Create a QA tester agent\"\n\nReady to work! 🦞"
+    "message": "# 👋 Meet Your Team!\n\n## The Squad (8 agents)\n- **[Coordinator]** (me!) - Team lead, delegates, reviews\n- **[Developer]** - Backend APIs, databases, code reviews\n- **[Architect]** - System design, technical decisions\n- **[Researcher]** - Analysis, documentation, research\n- **[PM]** - PRDs, requirements, user stories\n- **[Designer]** - UX research, wireframes, visual specs\n- **[QA]** - Adversarial reviews, testing, quality gates\n- **[Deployment]** - Releases, hotfixes, CI/CD\n\n## How We Work\n1. All tasks go through this board\n2. I delegate to the right specialist\n3. They do the work and report back\n4. I review and mark complete\n\nReady to work! 🦞"
   }'
 ```
-✅ Should return the created message
+✅ Should return the created message with `mentioned_agent_ids` array
 
 ### 4. Verify mem0 + Qdrant
 ```bash
@@ -1587,7 +1599,7 @@ Check each component:
 | Component | How to Check | If Missing |
 |-----------|--------------|------------|
 | Backend deployed | `curl <BACKEND_URL>/api/agents` | Guide deployment |
-| Agents seeded | Response has 6+ agents | Seed default agents |
+| Agents seeded | Response has 8 agents | Seed default agents |
 | Theme applied | Agents have custom names | Ask for theme choice |
 | mem0 + Qdrant | `curl localhost:6333/health` | Guide mem0 setup |
 | Browser configured | `browser action=status` | Encourage setup |
@@ -1614,8 +1626,123 @@ curl -X POST <BACKEND_URL>/api/messages \
   -H "x-api-key: <API_KEY>" \
   -d '{
     "agent_id": 1,
-    "content": "🔄 Skill updated to latest version!\n\n**Status:**\n- ✅ Backend connected\n- ✅ Agents configured\n- ✅ mem0 + Qdrant running\n- ⚠️ [List any missing components]\n\n**Action needed:** [If any]"
+    "message": "🔄 Skill updated to latest version!\n\n**Status:**\n- ✅ Backend connected\n- ✅ 8 agents configured\n- ✅ mem0 + Qdrant running\n- ⚠️ [List any missing components]\n\n**Action needed:** [If any]"
   }'
+```
+
+---
+
+## 📡 Complete API Reference
+
+All endpoints require `x-api-key` header for write operations (POST/PUT/DELETE) when `API_KEY` is set.
+
+### Tasks API
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/tasks` | List all tasks (filters: `status`, `agent_id`, `limit`, `offset`) |
+| GET | `/api/stats` | Dashboard stats (`activeAgents`, `tasksInQueue`) |
+| POST | `/api/tasks` | Create task (`title` required, `description`, `status`, `tags[]`, `agent_id`) |
+| PUT | `/api/tasks/:id` | Update task fields |
+| DELETE | `/api/tasks/:id` | Delete task |
+| POST | `/api/tasks/:id/progress` | Advance task to next status (backlog→todo→in_progress→review→completed) |
+| POST | `/api/tasks/:id/complete` | Mark task completed directly |
+
+### Agents API
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/agents` | List all agents |
+| GET | `/api/agents/:id` | Get single agent by ID |
+| POST | `/api/agents` | Create agent (`name` required, `role`, `description`, `status`) |
+| PUT | `/api/agents/:id` | Update agent (includes BMAD profile fields: `bio`, `principles`, `dos`, `donts`, `critical_actions`, `communication_style`, `bmad_source`) |
+| PATCH | `/api/agents/:id/status` | Quick status update (`idle`, `working`, `error`, `offline`) |
+| DELETE | `/api/agents/:id` | Delete agent |
+
+### Messages API
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/messages` | List messages (filters: `agent_id`, `limit`, `offset`) |
+| POST | `/api/messages` | Create message (`message` required, `agent_id`). Parses @mentions automatically. |
+| GET | `/api/messages/mentions/:agentId` | Get messages mentioning a specific agent (filters: `since`, `limit`) |
+
+### Board & Stream
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/board` | Get tasks in Kanban board format (grouped by status columns) |
+| GET | `/api/stream` | SSE endpoint for real-time updates (`?demo=true` for auto-progression) |
+
+### Webhooks API
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/webhooks` | Get webhook configuration status and supported events |
+| POST | `/api/webhooks/reload` | Reload webhook configuration from disk |
+
+**Supported webhook events:** `task-created`, `task-updated`, `task-deleted`, `message-created`, `agent-status-changed`
+
+### Config & Auth
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/auth/status` | Check if authentication is enabled |
+| GET | `/api/config/status` | Get configuration file status |
+| POST | `/api/config/reload` | Reload agents from YAML config (`force=true` clears existing) |
+| GET | `/health` | Health check (database status, auth status) |
+
+### OpenAPI Docs
+
+When running locally, visit `http://localhost:3001/docs` for interactive Swagger documentation.
+
+---
+
+## 🎛️ OpenClaw Inline Buttons
+
+OpenClaw supports inline buttons for Telegram/Discord. Use them in the skill for user choices:
+
+**Theme selection example:**
+```json
+{
+  "action": "send",
+  "message": "Choose your team theme:",
+  "buttons": [
+    [
+      {"text": "🐉 Dragon Ball Z", "callback_data": "theme_dbz"},
+      {"text": "☠️ One Piece", "callback_data": "theme_onepiece"}
+    ],
+    [
+      {"text": "🦸 Marvel", "callback_data": "theme_marvel"},
+      {"text": "🧪 Breaking Bad", "callback_data": "theme_breakingbad"}
+    ]
+  ]
+}
+```
+
+**Deployment choice:**
+```json
+{
+  "action": "send",
+  "message": "How do you want to deploy Claw Control?",
+  "buttons": [
+    [{"text": "🚂 Railway (One-Click)", "callback_data": "deploy_railway"}],
+    [{"text": "🐳 Docker Compose", "callback_data": "deploy_docker"}],
+    [{"text": "💻 Local Dev", "callback_data": "deploy_local"}]
+  ]
+}
+```
+
+**Yes/No confirmation:**
+```json
+{
+  "action": "send",
+  "message": "Ready to apply the theme?",
+  "buttons": [[
+    {"text": "✅ Yes", "callback_data": "confirm_yes"},
+    {"text": "❌ No", "callback_data": "confirm_no"}
+  ]]
+}
 ```
 
 ---
