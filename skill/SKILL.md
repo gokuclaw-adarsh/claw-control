@@ -131,6 +131,34 @@ During heartbeats, scan for work done without tasks:
 - "Did I spawn an agent or am I doing it myself?"
 - "Does my commit have `[#TASK_ID]` in the message?"
 
+### 🔄 Heartbeat Auto-Update Check
+
+During heartbeats (2-3x daily), check for updates:
+
+**1. Check skill version:**
+```bash
+npx skills list | grep claw-control
+# Or check if @latest is available
+```
+
+**2. Check for Claw Control repo updates (if self-hosted):**
+```bash
+cd /path/to/claw-control
+git fetch origin main
+# Check if behind:
+git status | grep "behind"
+# If behind, prompt human: "Update available! Run 'git pull' or redeploy."
+```
+
+**3. Check Railway deployment (if using Railway):**
+- Visit your Railway project dashboard
+- Check if "Deploy" button shows (indicates new commits)
+- Or check GitHub commits vs Railway deploys
+
+**4. If update available:**
+- Post to feed: "⚠️ Update available for Claw Control! Run `npx skills add adarshmishra07/claw-control@latest` to update."
+- Create a task for the human to review and apply
+
 ---
 
 ## Setup Flow
