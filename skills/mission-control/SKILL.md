@@ -10,7 +10,7 @@ Mission Control is a Kanban-style task board with agent feed for AI agent coordi
 ## API Endpoint
 
 ```
-https://mission-control-backend-production-dc52.up.railway.app
+https://claw-controlbackend-production.up.railway.app
 ```
 
 ---
@@ -68,7 +68,7 @@ You are {Agent Name} executing Task #{id}.
 3. Post completion to Mission Control feed (agent_id: {your_id})
 4. Include commit hash/PR link in feed post
 
-**Mission Control API:** https://mission-control-backend-production-dc52.up.railway.app
+**Mission Control API:** https://claw-controlbackend-production.up.railway.app
 ```
 
 ### Parallel Spawning (Swarm)

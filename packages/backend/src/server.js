@@ -112,7 +112,14 @@ fastify.addSchema({
       enum: ['idle', 'working', 'error', 'offline'],
       description: 'Agent status' 
     },
-    created_at: { type: 'string', format: 'date-time', description: 'Creation timestamp' }
+    created_at: { type: 'string', format: 'date-time', description: 'Creation timestamp' },
+    bio: { type: 'string', nullable: true, description: 'Agent biography' },
+    principles: { type: 'string', nullable: true, description: 'Core operating principles (JSON array)' },
+    critical_actions: { type: 'string', nullable: true, description: 'Critical actions this agent takes (JSON array)' },
+    dos: { type: 'string', nullable: true, description: 'What this agent does (JSON array)' },
+    donts: { type: 'string', nullable: true, description: 'What this agent does NOT do (JSON array)' },
+    communication_style: { type: 'string', nullable: true, description: 'How this agent communicates' },
+    bmad_source: { type: 'string', nullable: true, description: 'BMAD methodology source role' }
   }
 });
 
