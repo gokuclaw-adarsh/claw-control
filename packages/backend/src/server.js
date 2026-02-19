@@ -16,6 +16,7 @@ const dbAdapter = require('./db-adapter');
 const { loadAgentsConfig, getConfigPath, CONFIG_PATHS } = require('./config-loader');
 const { dispatchWebhook, reloadWebhooks, getWebhooks, SUPPORTED_EVENTS } = require('./webhook');
 const { withAuth, isAuthEnabled } = require('./auth');
+const v3Migration = require('./migrations/v3_mentions_profiles');
 const packageJson = require('../package.json');
 
 /**
@@ -697,7 +698,7 @@ fastify.post('/api/agents', {
 fastify.put('/api/agents/:id', {
   ...withAuth,
   schema: {
-    description: 'Update an existing agent',
+    description: 'Update an existing agent, including profile and BMAD fields',
     tags: ['Agents'],
     security: [{ apiKey: [] }],
     params: {
@@ -712,7 +713,14 @@ fastify.put('/api/agents/:id', {
         name: { type: 'string', maxLength: 100 },
         description: { type: 'string' },
         role: { type: 'string' },
-        status: { type: 'string', enum: ['idle', 'working', 'error', 'offline'] }
+        status: { type: 'string', enum: ['idle', 'working', 'error', 'offline'] },
+        bio: { type: 'string', description: 'Agent biography' },
+        principles: { type: 'string', description: 'JSON array of guiding principles' },
+        critical_actions: { type: 'string', description: 'JSON array of critical actions' },
+        communication_style: { type: 'string', description: 'Communication style description' },
+        dos: { type: 'string', description: 'JSON array of what agent does' },
+        donts: { type: 'string', description: 'JSON array of what agent does not do' },
+        bmad_source: { type: 'string', description: 'BMAD framework source reference' }
       }
     },
     response: {
@@ -729,7 +737,7 @@ fastify.put('/api/agents/:id', {
   }
 }, async (request, reply) => {
   const { id } = request.params;
-  const { name, description, role, status } = request.body;
+  const { name, description, role, status, bio, principles, critical_actions, communication_style, dos, donts, bmad_source } = request.body;
 
   const validation = validateAgentInput({ name, status }, true);
   if (!validation.valid) {
@@ -755,10 +763,17 @@ fastify.put('/api/agents/:id', {
      SET name = COALESCE(${param(1)}, name),
          description = COALESCE(${param(2)}, description),
          role = COALESCE(${param(3)}, role),
-         status = COALESCE(${param(4)}, status)
-     WHERE id = ${param(5)}
+         status = COALESCE(${param(4)}, status),
+         bio = COALESCE(${param(5)}, bio),
+         principles = COALESCE(${param(6)}, principles),
+         critical_actions = COALESCE(${param(7)}, critical_actions),
+         communication_style = COALESCE(${param(8)}, communication_style),
+         dos = COALESCE(${param(9)}, dos),
+         donts = COALESCE(${param(10)}, donts),
+         bmad_source = COALESCE(${param(11)}, bmad_source)
+     WHERE id = ${param(12)}
      RETURNING *`,
-    [trimmedName, description, role, status, id]
+    [trimmedName, description, role, status, bio, principles, critical_actions, communication_style, dos, donts, bmad_source, id]
   );
 
   if (rows.length === 0) {
@@ -971,7 +986,7 @@ fastify.get('/api/messages', {
 fastify.post('/api/messages', {
   ...withAuth,
   schema: {
-    description: 'Create a new message',
+    description: 'Create a new message. Parses @mentions from content and resolves agent IDs.',
     tags: ['Messages'],
     security: [{ apiKey: [] }],
     body: {
@@ -994,17 +1009,128 @@ fastify.post('/api/messages', {
     return reply.status(400).send({ error: 'Message is required' });
   }
 
+  // Parse @mentions from message content
+  const mentionMatches = message.match(/@(\w+)/g);
+  let mentionedAgentIds = [];
+
+  if (mentionMatches) {
+    const mentionNames = mentionMatches.map(m => m.slice(1).toLowerCase());
+    const { rows: agents } = await dbAdapter.query('SELECT id, name FROM agents');
+    const nameToId = new Map(agents.map(a => [a.name.toLowerCase(), a.id]));
+    mentionedAgentIds = [...new Set(
+      mentionNames.map(n => nameToId.get(n)).filter(Boolean)
+    )];
+  }
+
+  const mentionsValue = dbAdapter.isSQLite()
+    ? JSON.stringify(mentionedAgentIds)
+    : mentionedAgentIds;
+
   const { rows } = await dbAdapter.query(
-    `INSERT INTO agent_messages (agent_id, message) 
-     VALUES (${param(1)}, ${param(2)}) 
+    `INSERT INTO agent_messages (agent_id, message, mentioned_agent_ids) 
+     VALUES (${param(1)}, ${param(2)}, ${param(3)}) 
      RETURNING *`,
-    [agent_id || null, message]
+    [agent_id || null, message, mentionsValue]
   );
 
   const msg = rows[0];
-  broadcast('message-created', msg);
-  dispatchWebhook('message-created', msg);
-  return reply.status(201).send(msg);
+
+  // Look up agent_name for SSE broadcast
+  let agentName = null;
+  if (msg.agent_id) {
+    const { rows: agentRows } = await dbAdapter.query(
+      `SELECT name FROM agents WHERE id = ${param(1)}`,
+      [msg.agent_id]
+    );
+    if (agentRows.length > 0) agentName = agentRows[0].name;
+  }
+  const broadcastMsg = { ...msg, agent_name: agentName, mentioned_agent_ids: mentionedAgentIds };
+  broadcast('message-created', broadcastMsg);
+  dispatchWebhook('message-created', broadcastMsg);
+
+  // Broadcast agent-mentioned event for each mentioned agent
+  if (mentionedAgentIds.length > 0) {
+    broadcast('agent-mentioned', {
+      message_id: msg.id,
+      mentioned_agent_ids: mentionedAgentIds,
+      agent_id: msg.agent_id,
+      agent_name: agentName,
+      message: msg.message,
+      created_at: msg.created_at
+    });
+  }
+
+  return reply.status(201).send({ ...msg, mentioned_agent_ids: mentionedAgentIds, agent_name: agentName });
+});
+
+// ============ MENTIONS API ============
+
+/**
+ * GET /api/messages/mentions/:agentId - Retrieve messages that @mention a specific agent.
+ * @param {object} request.params - URL parameters
+ * @param {number} request.params.agentId - Agent ID to find mentions for
+ * @param {object} request.query - Query parameters
+ * @param {string} [request.query.since] - ISO timestamp filter (messages after this time)
+ * @param {number} [request.query.limit=50] - Maximum messages to return
+ * @returns {Array<object>} Array of message objects mentioning this agent
+ */
+fastify.get('/api/messages/mentions/:agentId', {
+  schema: {
+    description: 'Retrieve messages that @mention a specific agent',
+    tags: ['Messages'],
+    params: {
+      type: 'object',
+      properties: {
+        agentId: { type: 'integer', description: 'Agent ID to find mentions for' }
+      }
+    },
+    querystring: {
+      type: 'object',
+      properties: {
+        since: { type: 'string', format: 'date-time', description: 'Return messages after this ISO timestamp' },
+        limit: { type: 'integer', default: 50, minimum: 1, maximum: 200, description: 'Maximum messages to return' }
+      }
+    },
+    response: {
+      200: {
+        type: 'array',
+        items: { $ref: 'Message#' }
+      }
+    }
+  }
+}, async (request, reply) => {
+  const { agentId } = request.params;
+  const { since, limit = 50 } = request.query;
+  const params = [];
+
+  let query;
+  if (dbAdapter.isSQLite()) {
+    // SQLite: mentioned_agent_ids is a JSON array stored as TEXT
+    params.push(agentId);
+    query = `SELECT m.*, a.name as agent_name FROM agent_messages m
+             LEFT JOIN agents a ON m.agent_id = a.id
+             WHERE EXISTS (
+               SELECT 1 FROM json_each(m.mentioned_agent_ids) j WHERE j.value = ${param(params.length)}
+             )`;
+  } else {
+    // PostgreSQL: mentioned_agent_ids is INTEGER[]
+    params.push(agentId);
+    query = `SELECT m.*, a.name as agent_name FROM agent_messages m
+             LEFT JOIN agents a ON m.agent_id = a.id
+             WHERE ${param(params.length)} = ANY(m.mentioned_agent_ids)`;
+  }
+
+  if (since) {
+    params.push(since);
+    query += ` AND m.created_at > ${param(params.length)}`;
+  }
+
+  query += ' ORDER BY m.created_at DESC';
+  params.push(parseInt(limit));
+  query += ` LIMIT ${param(params.length)}`;
+
+  const { rows } = await dbAdapter.query(query, params);
+  return rows;
 });
 
 // ============ BOARD API ============
@@ -1625,6 +1751,8 @@ const start = async () => {
     
     // Run migrations first, then seed
     await runMigrations();
+    await v3Migration.up();
+    fastify.log.info('V3 migration (mentions & profiles) applied');
     await seedAgentsFromConfig();
     
     await fastify.listen({ port: PORT, host: '0.0.0.0' });

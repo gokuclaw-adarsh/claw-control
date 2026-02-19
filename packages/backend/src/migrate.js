@@ -13,6 +13,7 @@
 const fs = require('fs');
 const path = require('path');
 const dbAdapter = require('./db-adapter');
+const v3Migration = require('./migrations/v3_mentions_profiles');
 
 /** PostgreSQL schema migration SQL */
 const pgMigration = `
@@ -113,6 +114,10 @@ async function migrate() {
       console.log('PostgreSQL migration completed successfully!');
     }
     
+    // Run incremental migrations
+    await v3Migration.up();
+    console.log('V3 migration (mentions & profiles) applied.');
+
     const { rows } = await dbAdapter.query('SELECT COUNT(*) as count FROM agents');
     const count = parseInt(rows[0].count);
     
