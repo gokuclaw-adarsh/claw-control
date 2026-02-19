@@ -1,6 +1,6 @@
 ---
 name: claw-control
-description: Complete AI agent operating system setup with Kanban task management. Use when setting up multi-agent coordination, task tracking, or configuring an agent team. Includes theme selection (DBZ, One Piece, Marvel, etc.), workflow enforcement (all tasks through board), browser setup, GitHub integration, and memory enhancement (Supermemory, QMD).
+description: Complete AI agent operating system setup with Kanban task management. Use when setting up multi-agent coordination, task tracking, or configuring an agent team. Includes theme selection (DBZ, One Piece, Marvel, etc.), workflow enforcement (all tasks through board), browser setup, GitHub integration, and memory enhancement (mem0, Supermemory, QMD).
 ---
 
 # Claw Control - Agent Operating System
@@ -9,13 +9,26 @@ Complete setup for AI agent coordination with real-time Kanban dashboard.
 
 ## What This Skill Does
 
-1. **Deploy Claw Control** - Three paths: one-click, bot-assisted, or fully automated
-2. **Theme your team** - Pick a series (DBZ, One Piece, Marvel, etc.)
-3. **Enforce workflow** - ALL tasks go through the board, no exceptions
-4. **Configure agent behavior** - Update AGENTS.md and SOUL.md
-5. **Setup browser** - Required for autonomous actions
-6. **Setup GitHub** - Enable autonomous deployments
-7. **Enhance memory** - Integrate Supermemory and QMD
+1. **Deploy Claw Control** - Three paths: Docker Compose, local dev, or Railway cloud
+2. **Setup Agent Memory (mem0 + Qdrant)** - FIRST TASK after deploy!
+3. **Theme your team** - Pick a series (DBZ, One Piece, Marvel, etc.)
+4. **Enforce workflow** - ALL tasks go through the board, no exceptions
+5. **Configure agent behavior** - Update AGENTS.md and SOUL.md
+6. **Setup browser** - Required for autonomous actions
+7. **Setup GitHub** - Enable autonomous deployments
+8. **Enhance memory** - Integrate Supermemory and QMD (optional)
+
+---
+
+## ⚠️ Updating from a Previous Version?
+
+If you previously installed this skill and want the latest:
+
+```bash
+npx skills add adarshmishra07/claw-control@latest
+```
+
+This ensures you get the newest features and fixes. Cached skill files won't auto-update otherwise.
 
 ---
 
@@ -121,25 +134,97 @@ Walk the human through each step. Be friendly and conversational - this is a set
 
 ### Step 1: Deploy Claw Control
 
-**First, check browser status:** `browser action=status`
-
-Then present:
+**Choose your deployment method:**
 
 ---
 
-🦞 **Let's get Claw Control running!**
+#### 🥇 Option 1: Docker Compose (Recommended for Self-Hosting)
 
-**One-click deploy:**
+Best for: Production self-hosting, full control, easy updates
+
+```bash
+# Clone the repo
+git clone https://github.com/adarshmishra07/claw-control.git
+cd claw-control
+
+# Copy environment template
+cp .env.example .env
+# Edit .env with your settings (API_KEY, DATABASE_URL, etc.)
+
+# Start everything
+docker compose up -d
+
+# View logs
+docker compose logs -f
+```
+
+**Services started:**
+- Backend API on port 3001
+- Frontend on port 3000
+- PostgreSQL database (or use external)
+
+**To update:**
+```bash
+git pull
+docker compose down
+docker compose up -d --build
+# Migrations run automatically on startup!
+```
+
+---
+
+#### 🥈 Option 2: Local Development
+
+Best for: Development, customization, learning the codebase
+
+```bash
+# Clone the repo
+git clone https://github.com/adarshmishra07/claw-control.git
+cd claw-control
+
+# Install dependencies
+npm install
+
+# Setup database (SQLite by default for local dev)
+cp .env.example .env
+
+# Start development server
+npm run dev
+```
+
+**Services:**
+- Backend: http://localhost:3001
+- Frontend: http://localhost:3000
+
+**To update:**
+```bash
+git pull
+npm install
+npm run dev
+# Migrations run automatically!
+```
+
+---
+
+#### 🥉 Option 3: Railway One-Click (Quick Cloud Deploy)
+
+Best for: Quick setup, no server management, demos
+
 👉 [railway.app/deploy/claw-control](https://railway.app/deploy/claw-control?referralCode=VsZvQs)
 
-**Or self-host:**
-📦 [github.com/adarshmishra07/claw-control](https://github.com/adarshmishra07/claw-control)
+Click the button, configure environment variables, done!
+
+**To update on Railway:**
+- If you forked: sync your fork with upstream, Railway auto-deploys
+- If you used template: redeploy from the updated template
 
 ---
 
 **Already deployed?** Share your backend URL + API key (if set).
 
 **Want me to deploy for you?**
+
+Check browser status first: `browser action=status`
 
 *[If browser available:]*
 > Just say "deploy for me" - I'll handle everything!
@@ -223,7 +308,208 @@ curl -s <BACKEND_URL>/api/agents
 
 ---
 
-### Step 2: Choose Your Team Theme
+### Step 2: Give Your Agents Long-Term Memory (mem0 + Qdrant)
+
+**🧠 THIS IS THE FIRST TASK AFTER DEPLOYMENT! Don't skip this.**
+
+After Claw Control is deployed and running, your agents need persistent memory. Without this, they forget everything between sessions. mem0 + Qdrant gives them:
+
+- **Context across sessions** — Agents remember past conversations and decisions
+- **Preference learning** — They adapt to how you work over time
+- **Knowledge accumulation** — Important facts persist and compound
+
+---
+
+#### Quick Setup (5 minutes)
+
+**Step 1: Start Qdrant (Vector Database)**
+
+```bash
+# Docker (recommended)
+docker run -d -p 6333:6333 -p 6334:6334 \
+  -v qdrant_storage:/qdrant/storage \
+  --name qdrant \
+  qdrant/qdrant
+```
+
+Verify it's running: `curl http://localhost:6333/health`
+
+**Step 2: Install mem0**
+
+```bash
+pip install mem0ai
+```
+
+**Step 3: Configure mem0 with Your LLM**
+
+Create a configuration file or set environment variables. mem0 works with whatever LLM you already have:
+
+**For Anthropic (Claude):**
+```python
+from mem0 import Memory
+
+config = {
+    "llm": {
+        "provider": "anthropic",
+        "config": {
+            "model": "claude-sonnet-4-20250514",
+            "api_key": "your-anthropic-key"
+        }
+    },
+    "vector_store": {
+        "provider": "qdrant",
+        "config": {
+            "host": "localhost",
+            "port": 6333
+        }
+    }
+}
+
+memory = Memory.from_config(config)
+```
+
+**For OpenAI:**
+```python
+config = {
+    "llm": {
+        "provider": "openai",
+        "config": {
+            "model": "gpt-4o",
+            "api_key": "your-openai-key"
+        }
+    },
+    "vector_store": {
+        "provider": "qdrant",
+        "config": {
+            "host": "localhost",
+            "port": 6333
+        }
+    }
+}
+```
+
+**For Google (Gemini):**
+```python
+config = {
+    "llm": {
+        "provider": "google",
+        "config": {
+            "model": "gemini-2.0-flash",
+            "api_key": "your-google-key"
+        }
+    },
+    "vector_store": {
+        "provider": "qdrant",
+        "config": {
+            "host": "localhost",
+            "port": 6333
+        }
+    }
+}
+```
+
+**For Local LLM (Ollama):**
+```python
+config = {
+    "llm": {
+        "provider": "ollama",
+        "config": {
+            "model": "llama3.2",
+            "ollama_base_url": "http://localhost:11434"
+        }
+    },
+    "vector_store": {
+        "provider": "qdrant",
+        "config": {
+            "host": "localhost",
+            "port": 6333
+        }
+    }
+}
+```
+
+**Step 4: Test It Works**
+
+```python
+from mem0 import Memory
+
+memory = Memory.from_config(config)
+
+# Store a memory
+memory.add("The user prefers TypeScript over JavaScript", user_id="adarsh")
+
+# Search memories
+results = memory.search("What languages does the user prefer?", user_id="adarsh")
+print(results)
+```
+
+---
+
+#### Integrating with Your Agents
+
+Once mem0 + Qdrant is running, update your agent spawn prompts to include memory retrieval:
+
+```python
+# Before each agent task, retrieve relevant memories
+relevant_memories = memory.search(task_description, user_id="team")
+
+# Inject into agent context
+agent_context = f"""
+## Relevant Memories:
+{relevant_memories}
+
+## Current Task:
+{task_description}
+"""
+```
+
+**In AGENTS.md, add:**
+```markdown
+## Memory System
+
+All agents use mem0 + Qdrant for persistent memory.
+
+**Before starting ANY task:**
+1. Query mem0 for relevant context: `memory.search(task_summary)`
+2. Include relevant memories in your working context
+
+**After completing ANY task:**
+1. Store important learnings: `memory.add(key_insights, user_id="team")`
+2. Include decisions, preferences discovered, and lessons learned
+```
+
+---
+
+#### Docker Compose Addition (Optional)
+
+Add Qdrant to your claw-control docker-compose.yml:
+
+```yaml
+services:
+  # ... existing services ...
+  
+  qdrant:
+    image: qdrant/qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    restart: unless-stopped
+
+volumes:
+  qdrant_storage:
+```
+
+---
+
+**✅ Once mem0 + Qdrant is working, your agents have real memory!**
+
+This is NOT optional — it's the foundation for agents that actually learn and improve over time.
+
+---
+
+### Step 3: Choose Your Team Theme
 
 Ask: **"Now for the fun part! Let's theme your agent team. Name ANY series, movie, cartoon, anime, or show - I'll pick the perfect characters for each role!"**
 
@@ -269,7 +555,7 @@ Great choice! Here's your Team Avatar:
 Sound good?
 ```
 
-### Step 2b: Apply the Theme via API
+### Step 3b: Apply the Theme via API
 
 **⚠️ YOU MUST MAKE THESE API CALLS to actually apply the theme:**
 
@@ -300,7 +586,7 @@ If the response shows the new names, the theme is applied! If not, debug before 
 
 ---
 
-### Step 3: Main Character Selection
+### Step 4: Main Character Selection
 
 Ask: **"Who's your main character? This will be ME - the coordinator who runs the team."**
 
@@ -326,7 +612,7 @@ As [Main Character], you're the COORDINATOR:
 Think of yourself as the team lead, not the coder.
 ```
 
-### Step 4: Browser Setup (⚠️ CRITICAL FOR FULL AUTOMATION!)
+### Step 5: Browser Setup (⚠️ CRITICAL FOR FULL AUTOMATION!)
 
 **Without browser access, agents cannot:**
 - Research anything online
@@ -476,7 +762,7 @@ Quick fixes (try in order):
 
 **ALWAYS check browser status before tasks that need web access.**
 
-### Step 5: GitHub Setup (🚀 Enables Full Automation!)
+### Step 6: GitHub Setup (🚀 Enables Full Automation!)
 
 Ask: **"Want me to handle ALL the development? With GitHub access, I can do everything - including deploying Claw Control for you!"**
 
@@ -583,7 +869,7 @@ With browser access + the user logged into GitHub, the bot can **automatically s
 
 ---
 
-### Step 6: Enable Session Memory Hook (Quick Win!)
+### Step 7: Enable Session Memory Hook (Quick Win!)
 
 Ask: **"Let me enable automatic session memory saving..."**
 
@@ -606,7 +892,7 @@ You should see `💾 session-memory` with a checkmark.
 
 ---
 
-### Step 7: Memory Enhancement (Optional but Awesome!)
+### Step 8: Memory Enhancement (Optional)
 
 Ask: **"Want to supercharge my memory? I have two optional upgrades that make me way more helpful:"**
 
@@ -763,10 +1049,97 @@ qmd search "your search query"
 
 | Feature | Without | With |
 |---------|---------|------|
-| Supermemory | I forget everything between sessions | I remember your preferences, decisions, and context |
+| mem0 + Qdrant | Agents forget everything between sessions | Agents have true long-term memory |
+| Supermemory | Manual memory management | Auto-recall and auto-capture |
 | QMD | I can only search the web | I can search YOUR personal knowledge base |
 
-Both are optional, but they make me significantly more useful. Set them up when you're ready - we can always add them later!
+mem0 + Qdrant is **required** (Step 2). Supermemory and QMD are optional enhancements.
+
+---
+
+## 🔄 Agent-to-Agent Communication
+
+Agents can talk to each other through the Mission Control feed using @mentions.
+
+### How It Works
+
+**Posting a mention:**
+```bash
+curl -X POST <BACKEND_URL>/api/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: <API_KEY>" \
+  -d '{
+    "agent_id": 1,
+    "content": "Hey @Vegeta, I need you to review this PR: #42"
+  }'
+```
+
+The backend parses `@AgentName` in the content and records which agents were mentioned.
+
+**Checking your mentions:**
+```bash
+# Get messages where agent 2 (Vegeta) was mentioned
+curl -s "<BACKEND_URL>/api/messages/mentions/2" \
+  -H "x-api-key: <API_KEY>"
+```
+
+Returns messages where the specified agent was @mentioned.
+
+**Real-time mention notifications (SSE):**
+```bash
+# Subscribe to real-time events
+curl -N "<BACKEND_URL>/api/events"
+```
+
+Events emitted:
+- `message:created` — New message posted
+- `agent:mentioned` — An agent was @mentioned (includes agent_id and message)
+- `task:updated` — Task status changed
+- `agent:status` — Agent status changed (working/idle)
+
+### Agent Heartbeat Mention Check
+
+During heartbeats, agents should check their mentions:
+
+```python
+# In your agent's heartbeat routine:
+def check_mentions(agent_id):
+    response = requests.get(
+        f"{BACKEND_URL}/api/messages/mentions/{agent_id}",
+        headers={"x-api-key": API_KEY}
+    )
+    mentions = response.json()
+    
+    for mention in mentions:
+        if not mention.get("acknowledged"):
+            # Process the mention
+            handle_mention(mention)
+            
+            # Acknowledge it (post a response)
+            respond_to_mention(mention)
+```
+
+### Communication Patterns
+
+**Task handoff:**
+```
+@Goku: Task #42 complete. @Vegeta please review the PR.
+```
+
+**Asking for help:**
+```
+@Piccolo: I'm designing the new auth system. What's the recommended architecture pattern?
+```
+
+**Status update:**
+```
+@Bulma: Infrastructure is ready. @Trunks you can proceed with deployment.
+```
+
+**Blocking issue:**
+```
+@Goku: I'm blocked on #45. Need @Gohan to complete the research first.
+```
 
 ---
 
@@ -1005,7 +1378,14 @@ curl -X POST <BACKEND_URL>/api/messages \
 ```
 ✅ Should return the created message
 
-### 4. Ask User to Check Dashboard
+### 4. Verify mem0 + Qdrant
+```bash
+# Check Qdrant is running
+curl -s http://localhost:6333/health
+```
+✅ Should return `{"status":"ok"}`
+
+### 5. Ask User to Check Dashboard
 ```
 I just completed the Team Introductions task! 
 
@@ -1041,10 +1421,11 @@ Team: {{AGENT_LIST}}
 
 ✅ Task management configured
 ✅ Agent behavior updated
+✅ mem0 + Qdrant running - agents have long-term memory!
 ✅ Session memory hook enabled - conversations auto-save!
 {{#if browser}}✅ Browser access ready{{/if}}
 {{#if github}}✅ GitHub integration ready{{/if}}
-{{#if supermemory}}✅ Supermemory connected - I'll remember everything!{{/if}}
+{{#if supermemory}}✅ Supermemory connected - cloud memory active!{{/if}}
 {{#if qmd}}✅ QMD search ready - I can search your docs!{{/if}}
 
 From now on, I operate as {{COORDINATOR}}:
@@ -1067,14 +1448,17 @@ After setup, ALWAYS:
 - [ ] Review work before marking complete
 - [ ] Post updates to the agent feed
 - [ ] Never execute tasks as coordinator
+- [ ] Check mentions during heartbeats
 
 ---
 
-## 💓 Heartbeat Dashboard Sync
+## 💓 Heartbeat Dashboard Sync & Auto-Update
 
-**During every heartbeat, the coordinator should perform board hygiene:**
+**During every heartbeat, the coordinator should perform board hygiene AND system health checks:**
 
-### Check for Misplaced Tasks
+### Board Hygiene
+
+**Check for Misplaced Tasks:**
 ```bash
 # Fetch all tasks
 curl -s <BACKEND_URL>/api/tasks -H "x-api-key: <API_KEY>"
@@ -1086,7 +1470,7 @@ curl -s <BACKEND_URL>/api/tasks -H "x-api-key: <API_KEY>"
 - Tasks assigned to wrong agents (e.g., backend task assigned to DevOps)
 - Tasks in "review" that have been waiting too long
 
-### Fix Wrongly Placed Tasks
+**Fix Wrongly Placed Tasks:**
 ```bash
 # Move task to correct column
 curl -X PUT <BACKEND_URL>/api/tasks/ID \
@@ -1095,19 +1479,144 @@ curl -X PUT <BACKEND_URL>/api/tasks/ID \
   -d '{"status": "correct_status", "agent_id": CORRECT_AGENT_ID}'
 ```
 
-### Review Backlog
-- Check backlog for urgent items that should be prioritized
-- Look for stale tasks that need attention or removal
-- Identify tasks that can be batched together
+### Check Your Mentions
+```bash
+# Check if any agent mentioned you
+curl -s "<BACKEND_URL>/api/messages/mentions/<your_agent_id>" \
+  -H "x-api-key: <API_KEY>"
+```
 
-### General Board Hygiene
-- Ensure all active work has a task
-- Verify agent statuses match their assigned tasks
-- Clean up duplicate or abandoned tasks
-- Post to feed if any significant changes made
+If you have unacknowledged mentions, respond to them!
 
-**Frequency:** Every heartbeat (typically every 30 min)
-**Goal:** Keep the board accurate, current, and actionable
+### System Auto-Update Checks (2-3x Daily)
+
+**1. Check for Claw Control updates:**
+```bash
+cd /path/to/claw-control
+git fetch origin main
+BEHIND=$(git rev-list HEAD..origin/main --count)
+if [ "$BEHIND" -gt 0 ]; then
+  echo "⚠️ Claw Control is $BEHIND commits behind. Consider updating."
+  # Optionally auto-update:
+  # git pull && docker compose up -d --build
+fi
+```
+
+**2. Check DB migrations:**
+Migrations run automatically on startup. If you notice schema errors, restart the app:
+```bash
+docker compose restart backend
+# OR for local: npm run dev (restarts automatically)
+```
+
+**3. Check skill version:**
+```bash
+# Compare installed skill with latest
+npx skills info adarshmishra07/claw-control
+# If outdated:
+npx skills add adarshmishra07/claw-control@latest
+```
+
+**4. Check mem0 + Qdrant health:**
+```bash
+curl -s http://localhost:6333/health
+# Should return {"status":"ok"}
+```
+
+**5. Auto-fix missing components:**
+If something is broken, fix it or create a task:
+- Qdrant down? → Restart: `docker start qdrant`
+- Migrations failed? → Check logs, restart backend
+- Skill outdated? → Update: `npx skills add adarshmishra07/claw-control@latest`
+
+### HEARTBEAT.md Template
+
+Create this file in your workspace for the coordinator to follow:
+
+```markdown
+# HEARTBEAT.md - Coordinator Checklist
+
+## Every Heartbeat (Every 30 min)
+- [ ] Check board for stuck tasks
+- [ ] Check my mentions and respond
+- [ ] Fix any misplaced tasks
+
+## 2-3x Daily
+- [ ] Check if Claw Control needs updating (git fetch, compare commits)
+- [ ] Verify Qdrant is healthy (curl health endpoint)
+- [ ] Check for skill updates
+- [ ] Look for orphan work (commits without task IDs)
+
+## Auto-Fix Protocol
+If something is broken:
+1. Try to fix it automatically
+2. If can't fix → Create a task for the right agent
+3. If needs human → Create a 🙋 human task
+
+## What to Post to Feed
+- System health issues discovered
+- Updates applied
+- Orphan work found and retroactively logged
+```
+
+---
+
+## 🔄 On Skill Update Behavior
+
+When this skill is re-installed or updated (`npx skills add adarshmishra07/claw-control@latest`), the skill should:
+
+### 1. Check What's Already Deployed
+
+```bash
+# Test if backend is reachable
+curl -s <BACKEND_URL>/api/agents
+```
+
+**If deployed:**
+- Read existing configuration from TOOLS.md
+- Verify connection works
+- Skip deployment steps
+
+**If NOT deployed:**
+- Guide through deployment (Step 1)
+
+### 2. Identify Missing Components
+
+Check each component:
+
+| Component | How to Check | If Missing |
+|-----------|--------------|------------|
+| Backend deployed | `curl <BACKEND_URL>/api/agents` | Guide deployment |
+| Agents seeded | Response has 6+ agents | Seed default agents |
+| Theme applied | Agents have custom names | Ask for theme choice |
+| mem0 + Qdrant | `curl localhost:6333/health` | Guide mem0 setup |
+| Browser configured | `browser action=status` | Encourage setup |
+| GitHub configured | Check TOOLS.md for token | Offer to configure |
+
+### 3. Auto-Fix or Guide
+
+**Auto-fix (do silently):**
+- Update AGENTS.md with latest template sections
+- Ensure dashboard scripts are present
+- Update HEARTBEAT.md template
+
+**Guide user through:**
+- mem0 + Qdrant setup (if missing)
+- Theme selection (if default names)
+- Browser setup (if not configured)
+
+### 4. Post-Update Summary
+
+After skill update, post to feed:
+```bash
+curl -X POST <BACKEND_URL>/api/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: <API_KEY>" \
+  -d '{
+    "agent_id": 1,
+    "content": "🔄 Skill updated to latest version!\n\n**Status:**\n- ✅ Backend connected\n- ✅ Agents configured\n- ✅ mem0 + Qdrant running\n- ⚠️ [List any missing components]\n\n**Action needed:** [If any]"
+  }'
+```
 
 ---
 
