@@ -135,29 +135,39 @@ During heartbeats, scan for work done without tasks:
 
 During heartbeats (2-3x daily), check for updates:
 
+**Determine deployment type:**
+- If Claw Control is running on the SAME server as you (the agent) → you deployed it, you can update it
+- If running on Railway/other → user deployed it, ask them to update
+
 **1. Check skill version:**
 ```bash
 npx skills list | grep claw-control
-# Or check if @latest is available
 ```
 
-**2. Check for Claw Control repo updates (if self-hosted):**
+**2. Check for Claw Control repo updates:**
 ```bash
 cd /path/to/claw-control
 git fetch origin main
-# Check if behind:
 git status | grep "behind"
-# If behind, prompt human: "Update available! Run 'git pull' or redeploy."
 ```
 
-**3. Check Railway deployment (if using Railway):**
-- Visit your Railway project dashboard
-- Check if "Deploy" button shows (indicates new commits)
-- Or check GitHub commits vs Railway deploys
+**3. If update available:**
 
-**4. If update available:**
-- Post to feed: "⚠️ Update available for Claw Control! Run `npx skills add adarshmishra07/claw-control@latest` to update."
-- Create a task for the human to review and apply
+**If YOU deployed it (same server):**
+- Ask permission: "Update available for Claw Control. May I update now? (Yes/No)"
+- If yes:
+  ```bash
+  cd /path/to/claw-control
+  git pull origin main
+  # Restart services if needed
+  docker-compose down && docker-compose up -d
+  # or restart relevant services
+  ```
+- Post to feed: "✅ Updated Claw Control to latest"
+
+**If USER deployed it (Railway/other):**
+- Post to feed: "⚠️ New Claw Control version available! Please run `npx skills add adarshmishra07/claw-control@latest` to update, then let me know when done."
+- Wait for user confirmation before proceeding
 
 ---
 
