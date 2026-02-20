@@ -17,6 +17,7 @@ const { loadAgentsConfig, getConfigPath, CONFIG_PATHS } = require('./config-load
 const { dispatchWebhook, reloadWebhooks, getWebhooks, SUPPORTED_EVENTS } = require('./webhook');
 const { withAuth, isAuthEnabled } = require('./auth');
 const v3Migration = require('./migrations/v3_mentions_profiles');
+const v4Migration = require('./migrations/v4_task_comments');
 const packageJson = require('../package.json');
 
 /**
@@ -132,6 +133,19 @@ fastify.addSchema({
     message: { type: 'string', description: 'Message content' },
     agent_name: { type: 'string', nullable: true, description: 'Agent name (joined)' },
     created_at: { type: 'string', format: 'date-time', description: 'Message timestamp' }
+  }
+});
+
+fastify.addSchema({
+  $id: 'Comment',
+  type: 'object',
+  properties: {
+    id: { type: 'integer', description: 'Unique comment identifier' },
+    task_id: { type: 'integer', description: 'Task ID this comment belongs to' },
+    agent_id: { type: 'integer', nullable: true, description: 'Agent ID who created the comment' },
+    agent_name: { type: 'string', nullable: true, description: 'Agent name (joined)' },
+    content: { type: 'string', description: 'Comment content' },
+    created_at: { type: 'string', format: 'date-time', description: 'Comment timestamp' }
   }
 });
 
@@ -414,6 +428,173 @@ fastify.delete('/api/tasks/:id', {
 
   broadcast('task-deleted', { id: parseInt(id) });
   return { success: true, deleted: rows[0] };
+});
+
+/**
+ * GET /api/tasks/:id - Retrieve a single task by ID with comments count.
+ * @param {object} request.params - URL parameters
+ * @param {string} request.params.id - Task ID
+ * @returns {object} Task object with comments_count
+ */
+fastify.get('/api/tasks/:id', {
+  schema: {
+    description: 'Retrieve a single task by ID with comments count',
+    tags: ['Tasks'],
+    params: {
+      type: 'object',
+      properties: {
+        id: { type: 'integer', description: 'Task ID' }
+      }
+    },
+    response: {
+      200: {
+        type: 'object',
+        properties: {
+          id: { type: 'integer' },
+          title: { type: 'string' },
+          description: { type: 'string', nullable: true },
+          status: { type: 'string' },
+          agent_id: { type: 'integer', nullable: true },
+          tags: { type: 'array', items: { type: 'string' } },
+          created_at: { type: 'string', format: 'date-time' },
+          updated_at: { type: 'string', format: 'date-time' },
+          comments_count: { type: 'integer', description: 'Number of comments on this task' }
+        }
+      },
+      404: { $ref: 'Error#' }
+    }
+  }
+}, async (request, reply) => {
+  const { id } = request.params;
+
+  const { rows } = await dbAdapter.query(
+    `SELECT t.*, 
+            (SELECT COUNT(*) FROM task_comments WHERE task_id = t.id) as comments_count
+     FROM tasks t 
+     WHERE t.id = ${param(1)}`,
+    [id]
+  );
+
+  if (rows.length === 0) {
+    return reply.status(404).send({ error: 'Task not found' });
+  }
+
+  return rows[0];
+});
+
+/**
+ * GET /api/tasks/:id/comments - Retrieve comments for a task.
+ * @param {object} request.params - URL parameters
+ * @param {string} request.params.id - Task ID
+ * @returns {Array<object>} Array of comment objects
+ */
+fastify.get('/api/tasks/:id/comments', {
+  schema: {
+    description: 'Retrieve comments for a task',
+    tags: ['Tasks'],
+    params: {
+      type: 'object',
+      properties: {
+        id: { type: 'integer', description: 'Task ID' }
+      }
+    },
+    response: {
+      200: {
+        type: 'array',
+        items: { $ref: 'Comment#' }
+      }
+    }
+  }
+}, async (request, reply) => {
+  const { id } = request.params;
+
+  const { rows } = await dbAdapter.query(
+    `SELECT tc.*, a.name as agent_name 
+     FROM task_comments tc 
+     LEFT JOIN agents a ON tc.agent_id = a.id 
+     WHERE tc.task_id = ${param(1)} 
+     ORDER BY tc.created_at DESC`,
+    [id]
+  );
+
+  return rows;
+});
+
+/**
+ * POST /api/tasks/:id/comments - Create a new comment on a task.
+ * @param {object} request.params - URL parameters
+ * @param {string} request.params.id - Task ID
+ * @param {object} request.body - Comment data
+ * @param {string} request.body.content - Comment content (required)
+ * @param {number} [request.body.agent_id] - Agent ID (optional, auto-detected if not provided)
+ * @returns {object} Created comment object
+ */
+fastify.post('/api/tasks/:id/comments', {
+  ...withAuth,
+  schema: {
+    description: 'Create a new comment on a task',
+    tags: ['Tasks'],
+    security: [{ apiKey: [] }],
+    params: {
+      type: 'object',
+      properties: {
+        id: { type: 'integer', description: 'Task ID' }
+      }
+    },
+    body: {
+      type: 'object',
+      required: ['content'],
+      properties: {
+        content: { type: 'string', description: 'Comment content (required)' },
+        agent_id: { type: 'integer', description: 'Agent ID (optional, auto-detected)' }
+      }
+    },
+    response: {
+      201: { $ref: 'Comment#' },
+      404: { $ref: 'Error#' }
+    }
+  }
+}, async (request, reply) => {
+  const { id } = request.params;
+  const { content, agent_id } = request.body;
+
+  if (!content || !content.trim()) {
+    return reply.status(400).send({ error: 'Comment content is required' });
+  }
+
+  // Verify task exists
+  const { rows: taskRows } = await dbAdapter.query(
+    `SELECT id FROM tasks WHERE id = ${param(1)}`,
+    [id]
+  );
+
+  if (taskRows.length === 0) {
+    return reply.status(404).send({ error: 'Task not found' });
+  }
+
+  // Determine agent_id - use provided one or default to 1 (system agent)
+  const finalAgentId = agent_id || 1;
+
+  const { rows } = await dbAdapter.query(
+    `INSERT INTO task_comments (task_id, agent_id, content) 
+     VALUES (${param(1)}, ${param(2)}, ${param(3)}) 
+     RETURNING *`,
+    [id, finalAgentId, content.trim()]
+  );
+
+  // Get agent name for response
+  const { rows: agentRows } = await dbAdapter.query(
+    `SELECT name FROM agents WHERE id = ${param(1)}`,
+    [finalAgentId]
+  );
+
+  const comment = rows[0];
+  if (agentRows.length > 0) {
+    comment.agent_name = agentRows[0].name;
+  }
+
+  broadcast('comment-created', { task_id: parseInt(id), comment });
+  return reply.status(201).send(comment);
 });
 
 /** @type {Record<string, string|null>} Status progression map for task workflow */
@@ -1760,6 +1941,8 @@ const start = async () => {
     await runMigrations();
     await v3Migration.up();
     fastify.log.info('V3 migration (mentions & profiles) applied');
+    await v4Migration.up();
+    fastify.log.info('V4 migration (task_comments) applied');
     await seedAgentsFromConfig();
     
     await fastify.listen({ port: PORT, host: '0.0.0.0' });

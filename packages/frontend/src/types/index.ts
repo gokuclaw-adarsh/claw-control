@@ -67,3 +67,13 @@ export interface KanbanData {
   review: Task[];
   completed: Task[];
 }
+
+/** Comment on a task */
+export interface Comment {
+  id: string;
+  task_id: string;
+  agent_id: string;
+  agent_name?: string;
+  content: string;
+  created_at: string;
+}

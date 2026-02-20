@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import type { Agent, Task, Message, KanbanData, TaskStatus } from '../types';
+import type { Agent, Task, Message, KanbanData, TaskStatus, Comment } from '../types';
 
 /** 
  * Base URL for API requests.
@@ -94,6 +94,70 @@ export async function fetchAgentById(agentId: string): Promise<Agent | null> {
     const data = await res.json();
     const raw = data.data || data;
     return transformAgent(raw);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Transforms raw API comment data to typed Comment object.
+ * @param apiComment - Raw comment object from API
+ * @returns Typed Comment object
+ */
+export function transformComment(apiComment: Record<string, unknown>): Comment {
+  return {
+    id: String(apiComment.id ?? ''),
+    task_id: String(apiComment.task_id ?? ''),
+    agent_id: String(apiComment.agent_id ?? ''),
+    agent_name: apiComment.agent_name ? String(apiComment.agent_name) : undefined,
+    content: String(apiComment.content ?? ''),
+    created_at: String(apiComment.created_at ?? new Date().toISOString()),
+  };
+}
+
+/**
+ * Fetches comments for a specific task.
+ * @param taskId - The task ID to fetch comments for
+ * @returns Promise resolving to array of Comments
+ */
+export async function fetchTaskComments(taskId: string): Promise<Comment[]> {
+  try {
+    const res = await fetch(`${API_BASE}/api/tasks/${taskId}/comments`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data.map(transformComment) : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Creates a new comment on a task.
+ * @param taskId - The task ID to add comment to
+ * @param content - Comment content
+ * @param agentId - Optional agent ID (will use system default if not provided)
+ * @returns Promise resolving to the created Comment or null on error
+ */
+export async function createTaskComment(
+  taskId: string,
+  content: string,
+  agentId?: string
+): Promise<Comment | null> {
+  try {
+    const body: Record<string, string> = { content };
+    if (agentId) body.agent_id = agentId;
+    
+    const res = await fetch(`${API_BASE}/api/tasks/${taskId}/comments`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+    
+    if (!res.ok) return null;
+    const data = await res.json();
+    return transformComment(data);
   } catch {
     return null;
   }

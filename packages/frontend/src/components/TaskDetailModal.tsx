@@ -1,12 +1,14 @@
+import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { X, Bot, Clock, Calendar, Tag, Activity } from 'lucide-react';
+import { X, Bot, Clock, Calendar, Tag, Activity, MessageSquare, Send, User } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from './ui/dialog';
-import type { Task, TaskStatus, Agent } from '../types';
+import type { Task, TaskStatus, Agent, Comment } from '../types';
+import { fetchTaskComments, createTaskComment } from '../hooks/useApi';
 
 // Status configuration with labels and colors
 const statusConfig: Record<TaskStatus, { 
@@ -88,6 +90,40 @@ interface TaskDetailModalProps {
 }
 
 export function TaskDetailModal({ task, agents, open, onOpenChange }: TaskDetailModalProps) {
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [loadingComments, setLoadingComments] = useState(false);
+  const [newComment, setNewComment] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  // Fetch comments when task changes and modal is open
+  useEffect(() => {
+    if (task && open) {
+      setLoadingComments(true);
+      fetchTaskComments(task.id)
+        .then(setComments)
+        .finally(() => setLoadingComments(false));
+    }
+  }, [task, open]);
+
+  const handleSubmitComment = async () => {
+    if (!task || !newComment.trim() || submitting) return;
+    
+    setSubmitting(true);
+    const comment = await createTaskComment(task.id, newComment.trim());
+    if (comment) {
+      setComments(prev => [comment, ...prev]);
+      setNewComment('');
+    }
+    setSubmitting(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmitComment();
+    }
+  };
+
   if (!task) return null;
 
   const agent = agents.find(a => a.id === task.agentId);
@@ -270,6 +306,107 @@ export function TaskDetailModal({ task, agents, open, onOpenChange }: TaskDetail
                 <p className="text-sm font-medium text-white">{formatDate(task.updatedAt)}</p>
                 <p className="text-xs text-accent-muted">{getRelativeTime(task.updatedAt)}</p>
               </div>
+            </div>
+          </div>
+
+          {/* Comments Section */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-accent-secondary flex items-center gap-2">
+              <MessageSquare className="w-4 h-4" />
+              Comments
+              <span className="text-xs font-normal text-accent-muted">
+                ({comments.length})
+              </span>
+            </h3>
+            
+            {/* Comment Input */}
+            <div className="flex gap-3">
+              <div className="
+                w-10 h-10 rounded-xl 
+                bg-gradient-to-br from-accent-primary/20 to-accent-secondary/20 
+                border border-white/10 
+                flex items-center justify-center
+                flex-shrink-0
+              ">
+                <User className="w-5 h-5 text-accent-primary" />
+              </div>
+              <div className="flex-1 relative">
+                <textarea
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Add a comment..."
+                  className="
+                    w-full bg-white/[0.02] border border-white/10 rounded-xl
+                    px-4 py-3 pr-12 text-sm text-white
+                    placeholder:text-accent-muted
+                    focus:outline-none focus:ring-2 focus:ring-accent-primary/50
+                    focus:border-accent-primary/50
+                    resize-none
+                    min-h-[80px]
+                  "
+                  disabled={submitting}
+                />
+                <button
+                  onClick={handleSubmitComment}
+                  disabled={!newComment.trim() || submitting}
+                  className="
+                    absolute bottom-3 right-3 p-2 rounded-lg
+                    bg-accent-primary/20 text-accent-primary
+                    hover:bg-accent-primary/30 hover:text-white
+                    disabled:opacity-50 disabled:cursor-not-allowed
+                    transition-all duration-200
+                  "
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Comments List */}
+            <div className="space-y-3">
+              {loadingComments ? (
+                <div className="text-center py-4">
+                  <div className="inline-block w-5 h-5 border-2 border-accent-primary border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : comments.length === 0 ? (
+                <p className="text-accent-muted text-sm text-center py-4 bg-white/[0.02] rounded-xl border border-white/5">
+                  No comments yet. Be the first to comment!
+                </p>
+              ) : (
+                comments.map((comment) => (
+                  <div
+                    key={comment.id}
+                    className="
+                      bg-white/[0.02] rounded-xl p-4 border border-white/5
+                      space-y-2
+                    "
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="
+                        w-8 h-8 rounded-lg 
+                        bg-gradient-to-br from-accent-secondary/20 to-accent-tertiary/10 
+                        border border-white/10 
+                        flex items-center justify-center
+                        flex-shrink-0
+                      ">
+                        <Bot className="w-4 h-4 text-accent-secondary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-white">
+                          {comment.agent_name || 'Unknown Agent'}
+                        </p>
+                        <p className="text-xs text-accent-muted">
+                          {getRelativeTime(comment.created_at)}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="text-sm text-text-secondary pl-11">
+                      {comment.content}
+                    </p>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
