@@ -166,6 +166,21 @@ function TaskCard({ task, agents, isDragging, onClick }: TaskCardProps) {
         </div>
       )}
 
+      {/* Subtask Progress */}
+      {(task.subtaskCount ?? 0) > 0 && (
+        <div className="flex items-center gap-2 mt-2">
+          <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-cyber-green to-accent-primary rounded-full transition-all duration-300"
+              style={{ width: `${Math.round(((task.subtaskDoneCount ?? 0) / (task.subtaskCount ?? 1)) * 100)}%` }}
+            />
+          </div>
+          <span className="text-[10px] text-accent-muted font-mono flex-shrink-0">
+            {task.subtaskDoneCount}/{task.subtaskCount}
+          </span>
+        </div>
+      )}
+
       {/* Footer: Agent + Timestamp */}
       <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/5 gap-2">
         {/* Agent Badge with Assignees */}
