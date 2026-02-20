@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { X, Bot, Clock, Calendar, Tag, Activity, MessageSquare, Send, User, Paperclip, FileText, Package, Users, Plus, Trash2 } from 'lucide-react';
+import { X, Bot, Clock, Calendar, Tag, Activity, MessageSquare, Send, User, Paperclip, FileText, Package, Users, Plus, Trash2, ShieldCheck, ShieldAlert } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from './ui/dialog';
-import type { Task, TaskStatus, Agent, Comment } from '../types';
-import { fetchTaskComments, createTaskComment, updateTaskContext, updateTaskDeliverable } from '../hooks/useApi';
+import type { Task, TaskStatus, Agent, Comment, TaskAssignee } from '../types';
+import { fetchTaskComments, createTaskComment, updateTaskContext, updateTaskDeliverable, fetchTaskAssignees, addTaskAssignee, removeTaskAssignee, approveTask, updateTaskApproval } from '../hooks/useApi';
+import { AgentAvatar } from './AgentAvatar';
 
 // Status configuration with labels and colors
 const statusConfig: Record<TaskStatus, { 
@@ -99,6 +100,13 @@ export function TaskDetailModal({ task, agents, open, onOpenChange }: TaskDetail
   const [deliverableType, setDeliverableType] = useState(task?.deliverableType || '');
   const [deliverableContent, setDeliverableContent] = useState(task?.deliverableContent || '');
   const [savingDeliverable, setSavingDeliverable] = useState(false);
+  const [assignees, setAssignees] = useState<TaskAssignee[]>([]);
+  const [loadingAssignees, setLoadingAssignees] = useState(false);
+  const [showAddAssignee, setShowAddAssignee] = useState(false);
+  const [requiresApproval, setRequiresApproval] = useState(task?.requires_approval || false);
+  const [approvedAt, setApprovedAt] = useState(task?.approved_at);
+  const [approvedBy, setApprovedBy] = useState(task?.approved_by);
+  const [approvingTask, setApprovingTask] = useState(false);
 
   // Sync context and deliverable when task changes
   useEffect(() => {
@@ -116,6 +124,10 @@ export function TaskDetailModal({ task, agents, open, onOpenChange }: TaskDetail
       fetchTaskComments(task.id)
         .then(setComments)
         .finally(() => setLoadingComments(false));
+      setLoadingAssignees(true);
+      fetchTaskAssignees(task.id)
+        .then(setAssignees)
+        .finally(() => setLoadingAssignees(false));
     }
   }, [task, open]);
 
