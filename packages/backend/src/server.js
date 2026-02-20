@@ -22,6 +22,7 @@ const v5Migration = require('./migrations/v5_task_context');
 const v6HeartbeatMigration = require('./migrations/v6_agent_heartbeat');
 const v6ApprovalMigration = require('./migrations/v6_approval_gates');
 const v6AssigneesMigration = require('./migrations/v6_task_assignees');
+const v7SubtasksMigration = require('./migrations/v7_subtasks');
 const packageJson = require('../package.json');
 
 /**
@@ -211,7 +212,11 @@ fastify.get('/api/tasks', {
   }
 }, async (request, reply) => {
   const { status, agent_id, limit, offset } = request.query;
-  let query = 'SELECT t.*, (SELECT COUNT(*) FROM task_assignees WHERE task_id = t.id) as assignees_count FROM tasks t';
+  let query = `SELECT t.*, 
+    (SELECT COUNT(*) FROM task_assignees WHERE task_id = t.id) as assignees_count,
+    (SELECT COUNT(*) FROM subtasks WHERE task_id = t.id) as subtask_count,
+    (SELECT COUNT(*) FROM subtasks WHERE task_id = t.id AND status = 'done') as subtask_done_count
+    FROM tasks t`;
   const params = [];
   const conditions = [];
 
@@ -2315,6 +2320,7 @@ const start = async () => {
     await v6ApprovalMigration.up();
     fastify.log.info('V6 migration (approval gates) applied');
     await v6AssigneesMigration.up();
+    await v7SubtasksMigration.up();
     fastify.log.info('V6 migration (task_assignees) applied');
     await seedAgentsFromConfig();
     

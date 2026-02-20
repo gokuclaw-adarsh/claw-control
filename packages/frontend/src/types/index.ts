@@ -21,6 +21,7 @@ export interface Task {
   deliverableContent?: string;
   status: TaskStatus;
   agentId?: string;
+  assigneesCount?: number;
   requires_approval?: boolean;
   approved_at?: string;
   approved_by?: string;

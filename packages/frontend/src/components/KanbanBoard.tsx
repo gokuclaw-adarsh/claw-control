@@ -132,9 +132,15 @@ function TaskCard({ task, agents, isDragging, onClick }: TaskCardProps) {
       </div>
       
       {/* Awaiting Approval Badge */}
+      {/* Approval Badges */}
       {task.requires_approval && !task.approved_at && (
         <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-amber-400/10 text-amber-400 border border-amber-400/20 mb-1 w-fit">
           ⏳ Awaiting Approval
+        </span>
+      )}
+      {task.requires_approval && task.approved_at && (
+        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-emerald-400/10 text-emerald-400 border border-emerald-400/20 mb-1 w-fit">
+          ✅ Approved
         </span>
       )}
       
@@ -162,14 +168,21 @@ function TaskCard({ task, agents, isDragging, onClick }: TaskCardProps) {
 
       {/* Footer: Agent + Timestamp */}
       <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/5 gap-2">
-        {/* Agent Badge */}
+        {/* Agent Badge with Assignees */}
         {agent ? (
           <div className="flex items-center gap-2 min-w-0">
-            <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-accent-secondary/20 to-accent-tertiary/10 border border-white/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
-              {agent.avatar ? (
-                <img src={agent.avatar} alt="" className="w-full h-full rounded-lg object-cover" />
-              ) : (
-                <AgentAvatar name={agent.name} size={24} enableBlink={false} />
+            <div className="flex items-center -space-x-1.5">
+              <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-accent-secondary/20 to-accent-tertiary/10 border border-white/10 flex items-center justify-center flex-shrink-0 overflow-hidden z-10">
+                {agent.avatar ? (
+                  <img src={agent.avatar} alt="" className="w-full h-full rounded-lg object-cover" />
+                ) : (
+                  <AgentAvatar name={agent.name} size={24} enableBlink={false} />
+                )}
+              </div>
+              {(task.assigneesCount ?? 0) > 0 && (
+                <div className="w-6 h-6 rounded-lg bg-accent-primary/20 border border-white/10 flex items-center justify-center flex-shrink-0 z-0">
+                  <span className="text-[9px] font-bold text-accent-primary">+{task.assigneesCount}</span>
+                </div>
               )}
             </div>
             <span className="text-[11px] font-medium text-accent-secondary truncate max-w-[80px]">
@@ -181,7 +194,9 @@ function TaskCard({ task, agents, isDragging, onClick }: TaskCardProps) {
             <div className="w-6 h-6 rounded-lg bg-accent-muted/10 border border-white/5 flex items-center justify-center flex-shrink-0 overflow-hidden">
               <AgentAvatar name="Unassigned" size={24} enableBlink={false} />
             </div>
-            <span className="text-[11px] text-accent-muted">Unassigned</span>
+            <span className="text-[11px] text-accent-muted">
+              {(task.assigneesCount ?? 0) > 0 ? `${task.assigneesCount} assigned` : 'Unassigned'}
+            </span>
           </div>
         )}
         

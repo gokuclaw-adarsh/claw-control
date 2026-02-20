@@ -48,6 +48,7 @@ export function transformTask(apiTask: Record<string, unknown>): Task {
     requires_approval: apiTask.requires_approval === true || apiTask.requires_approval === 1,
     approved_at: apiTask.approved_at ? String(apiTask.approved_at) : undefined,
     approved_by: apiTask.approved_by ? String(apiTask.approved_by) : undefined,
+    assigneesCount: apiTask.assignees_count != null ? Number(apiTask.assignees_count) : undefined,
     createdAt: String(apiTask.created_at || new Date().toISOString()),
     updatedAt: String(apiTask.updated_at || new Date().toISOString()),
   };
