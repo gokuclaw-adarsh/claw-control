@@ -25,6 +25,8 @@ export interface Task {
   requires_approval?: boolean;
   approved_at?: string;
   approved_by?: string;
+  subtaskCount?: number;
+  subtaskDoneCount?: number;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -90,6 +92,17 @@ export interface TaskAssignee {
   agent_name?: string;
   agent_avatar?: string;
   agent_status?: string;
+}
+
+/** Subtask on a task */
+export interface Subtask {
+  id: string;
+  task_id: string;
+  title: string;
+  status: 'todo' | 'done';
+  agent_id?: string;
+  position: number;
+  created_at: string;
 }
 
 /** Comment on a task */

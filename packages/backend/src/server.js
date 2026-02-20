@@ -600,7 +600,9 @@ fastify.get('/api/tasks/:id', {
   const { rows } = await dbAdapter.query(
     `SELECT t.*, 
             (SELECT COUNT(*) FROM task_comments WHERE task_id = t.id) as comments_count,
-            (SELECT COUNT(*) FROM task_assignees WHERE task_id = t.id) as assignees_count
+            (SELECT COUNT(*) FROM task_assignees WHERE task_id = t.id) as assignees_count,
+            (SELECT COUNT(*) FROM subtasks WHERE task_id = t.id) as subtask_count,
+            (SELECT COUNT(*) FROM subtasks WHERE task_id = t.id AND status = 'done') as subtask_done_count
      FROM tasks t 
      WHERE t.id = ${param(1)}`,
     [id]
@@ -1000,6 +1002,130 @@ fastify.post('/api/tasks/:id/complete', {
   dispatchWebhook('task-updated', task);
   
   return { success: true, task };
+});
+
+// ============ SUBTASKS API ============
+
+/**
+ * GET /api/tasks/:id/subtasks - List subtasks for a task.
+ */
+fastify.get('/api/tasks/:id/subtasks', {
+  schema: {
+    description: 'List subtasks for a task',
+    tags: ['Tasks'],
+    params: { type: 'object', properties: { id: { type: 'integer' } } },
+    response: { 200: { type: 'array', items: { type: 'object', properties: {
+      id: { type: 'integer' }, task_id: { type: 'integer' }, title: { type: 'string' },
+      status: { type: 'string' }, agent_id: { type: 'integer', nullable: true },
+      position: { type: 'integer' }, created_at: { type: 'string' }
+    }}}}
+  }
+}, async (request, reply) => {
+  const { id } = request.params;
+  const { rows } = await dbAdapter.query(
+    `SELECT * FROM subtasks WHERE task_id = ${param(1)} ORDER BY position ASC, id ASC`,
+    [id]
+  );
+  return rows;
+});
+
+/**
+ * POST /api/tasks/:id/subtasks - Create a subtask.
+ */
+fastify.post('/api/tasks/:id/subtasks', {
+  ...withAuth,
+  schema: {
+    description: 'Create a subtask',
+    tags: ['Tasks'],
+    security: [{ apiKey: [] }],
+    params: { type: 'object', properties: { id: { type: 'integer' } } },
+    body: { type: 'object', required: ['title'], properties: {
+      title: { type: 'string' }, agent_id: { type: 'integer' }, position: { type: 'integer' }
+    }}
+  }
+}, async (request, reply) => {
+  const { id } = request.params;
+  const { title, agent_id, position } = request.body;
+
+  // Verify task exists
+  const { rows: taskRows } = await dbAdapter.query(`SELECT id FROM tasks WHERE id = ${param(1)}`, [id]);
+  if (taskRows.length === 0) return reply.status(404).send({ error: 'Task not found' });
+
+  // Get next position if not provided
+  let pos = position;
+  if (pos === undefined || pos === null) {
+    const { rows: maxRows } = await dbAdapter.query(
+      `SELECT COALESCE(MAX(position), -1) + 1 as next_pos FROM subtasks WHERE task_id = ${param(1)}`, [id]
+    );
+    pos = maxRows[0].next_pos;
+  }
+
+  const { rows } = await dbAdapter.query(
+    `INSERT INTO subtasks (task_id, title, agent_id, position) VALUES (${param(1)}, ${param(2)}, ${param(3)}, ${param(4)}) RETURNING *`,
+    [id, title, agent_id || null, pos]
+  );
+
+  broadcast('subtask-created', { task_id: parseInt(id), subtask: rows[0] });
+  return reply.status(201).send(rows[0]);
+});
+
+/**
+ * PUT /api/tasks/:id/subtasks/:subtask_id - Update a subtask.
+ */
+fastify.put('/api/tasks/:id/subtasks/:subtask_id', {
+  ...withAuth,
+  schema: {
+    description: 'Update a subtask',
+    tags: ['Tasks'],
+    security: [{ apiKey: [] }],
+    params: { type: 'object', properties: { id: { type: 'integer' }, subtask_id: { type: 'integer' } } },
+    body: { type: 'object', properties: {
+      title: { type: 'string' }, status: { type: 'string' }, agent_id: { type: 'integer' }, position: { type: 'integer' }
+    }}
+  }
+}, async (request, reply) => {
+  const { id, subtask_id } = request.params;
+  const { title, status, agent_id, position } = request.body;
+
+  const { rows } = await dbAdapter.query(
+    `UPDATE subtasks SET 
+      title = COALESCE(${param(1)}, title),
+      status = COALESCE(${param(2)}, status),
+      agent_id = COALESCE(${param(3)}, agent_id),
+      position = COALESCE(${param(4)}, position)
+     WHERE id = ${param(5)} AND task_id = ${param(6)} RETURNING *`,
+    [title, status, agent_id, position, subtask_id, id]
+  );
+
+  if (rows.length === 0) return reply.status(404).send({ error: 'Subtask not found' });
+
+  broadcast('subtask-updated', { task_id: parseInt(id), subtask: rows[0] });
+  return rows[0];
+});
+
+/**
+ * DELETE /api/tasks/:id/subtasks/:subtask_id - Delete a subtask.
+ */
+fastify.delete('/api/tasks/:id/subtasks/:subtask_id', {
+  ...withAuth,
+  schema: {
+    description: 'Delete a subtask',
+    tags: ['Tasks'],
+    security: [{ apiKey: [] }],
+    params: { type: 'object', properties: { id: { type: 'integer' }, subtask_id: { type: 'integer' } } }
+  }
+}, async (request, reply) => {
+  const { id, subtask_id } = request.params;
+
+  const { rows } = await dbAdapter.query(
+    `DELETE FROM subtasks WHERE id = ${param(1)} AND task_id = ${param(2)} RETURNING id`,
+    [subtask_id, id]
+  );
+
+  if (rows.length === 0) return reply.status(404).send({ error: 'Subtask not found' });
+
+  broadcast('subtask-deleted', { task_id: parseInt(id), subtask_id: parseInt(subtask_id) });
+  return { success: true };
 });
 
 // ============ AGENTS API ============

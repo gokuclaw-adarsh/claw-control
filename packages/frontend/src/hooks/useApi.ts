@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import type { Agent, Task, Message, KanbanData, TaskStatus, Comment, TaskAssignee } from '../types';
+import type { Agent, Task, Message, KanbanData, TaskStatus, Comment, TaskAssignee, Subtask } from '../types';
 
 /** 
  * Base URL for API requests.
@@ -45,6 +45,8 @@ export function transformTask(apiTask: Record<string, unknown>): Task {
     deliverableContent: apiTask.deliverable_content ? String(apiTask.deliverable_content) : undefined,
     status: (apiTask.status as TaskStatus) || 'backlog',
     agentId: apiTask.agent_id ? String(apiTask.agent_id) : undefined,
+    subtaskCount: apiTask.subtask_count ? Number(apiTask.subtask_count) : undefined,
+    subtaskDoneCount: apiTask.subtask_done_count ? Number(apiTask.subtask_done_count) : undefined,
     requires_approval: apiTask.requires_approval === true || apiTask.requires_approval === 1,
     approved_at: apiTask.approved_at ? String(apiTask.approved_at) : undefined,
     approved_by: apiTask.approved_by ? String(apiTask.approved_by) : undefined,
