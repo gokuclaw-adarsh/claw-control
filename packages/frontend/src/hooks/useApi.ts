@@ -320,6 +320,56 @@ export async function removeTaskAssignee(taskId: string, agentId: string): Promi
   }
 }
 
+// ============ SUBTASKS API ============
+
+export async function fetchSubtasks(taskId: string): Promise<Subtask[]> {
+  try {
+    const res = await fetch(`${API_BASE}/api/tasks/${taskId}/subtasks`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data.map((s: Record<string, unknown>) => ({
+      id: String(s.id), task_id: String(s.task_id), title: String(s.title),
+      status: String(s.status) as 'todo' | 'done', agent_id: s.agent_id ? String(s.agent_id) : undefined,
+      position: Number(s.position || 0), created_at: String(s.created_at || ''),
+    })) : [];
+  } catch { return []; }
+}
+
+export async function createSubtask(taskId: string, title: string): Promise<Subtask | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/tasks/${taskId}/subtasks`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title }),
+    });
+    if (!res.ok) return null;
+    const s = await res.json();
+    return { id: String(s.id), task_id: String(s.task_id), title: String(s.title),
+      status: String(s.status) as 'todo' | 'done', agent_id: s.agent_id ? String(s.agent_id) : undefined,
+      position: Number(s.position || 0), created_at: String(s.created_at || '') };
+  } catch { return null; }
+}
+
+export async function updateSubtask(taskId: string, subtaskId: string, updates: Partial<{ title: string; status: string }>): Promise<Subtask | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/tasks/${taskId}/subtasks/${subtaskId}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) return null;
+    const s = await res.json();
+    return { id: String(s.id), task_id: String(s.task_id), title: String(s.title),
+      status: String(s.status) as 'todo' | 'done', agent_id: s.agent_id ? String(s.agent_id) : undefined,
+      position: Number(s.position || 0), created_at: String(s.created_at || '') };
+  } catch { return null; }
+}
+
+export async function deleteSubtask(taskId: string, subtaskId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/api/tasks/${taskId}/subtasks/${subtaskId}`, { method: 'DELETE' });
+    return res.ok;
+  } catch { return false; }
+}
+
 /**
  * Hook for fetching and managing agents.
  * @returns Object with agents array, loading state, and setter

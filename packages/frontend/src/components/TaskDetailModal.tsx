@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { X, Bot, Clock, Calendar, Tag, Activity, MessageSquare, Send, User, Paperclip, FileText, Package, Users, Plus, Trash2, ShieldCheck, ShieldAlert } from 'lucide-react';
+import { X, Bot, Clock, Calendar, Tag, Activity, MessageSquare, Send, User, Paperclip, FileText, Package, Users, Plus, Trash2, ShieldCheck, ShieldAlert, CheckSquare, Square, ListChecks } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from './ui/dialog';
-import type { Task, TaskStatus, Agent, Comment, TaskAssignee } from '../types';
-import { fetchTaskComments, createTaskComment, updateTaskContext, updateTaskDeliverable, fetchTaskAssignees, addTaskAssignee, removeTaskAssignee, approveTask, updateTaskApproval } from '../hooks/useApi';
+import type { Task, TaskStatus, Agent, Comment, TaskAssignee, Subtask } from '../types';
+import { fetchTaskComments, createTaskComment, updateTaskContext, updateTaskDeliverable, fetchTaskAssignees, addTaskAssignee, removeTaskAssignee, approveTask, updateTaskApproval, fetchSubtasks, createSubtask, updateSubtask, deleteSubtask } from '../hooks/useApi';
 import { AgentAvatar } from './AgentAvatar';
 
 // Status configuration with labels and colors
@@ -103,6 +103,10 @@ export function TaskDetailModal({ task, agents, open, onOpenChange }: TaskDetail
   const [assignees, setAssignees] = useState<TaskAssignee[]>([]);
   const [loadingAssignees, setLoadingAssignees] = useState(false);
   const [showAddAssignee, setShowAddAssignee] = useState(false);
+  const [subtasks, setSubtasks] = useState<Subtask[]>([]);
+  const [loadingSubtasks, setLoadingSubtasks] = useState(false);
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+  const [addingSubtask, setAddingSubtask] = useState(false);
   const [requiresApproval, setRequiresApproval] = useState(task?.requires_approval || false);
   const [approvedAt, setApprovedAt] = useState(task?.approved_at);
   const [approvedBy, setApprovedBy] = useState(task?.approved_by);
@@ -131,6 +135,10 @@ export function TaskDetailModal({ task, agents, open, onOpenChange }: TaskDetail
       fetchTaskAssignees(task.id)
         .then(setAssignees)
         .finally(() => setLoadingAssignees(false));
+      setLoadingSubtasks(true);
+      fetchSubtasks(task.id)
+        .then(setSubtasks)
+        .finally(() => setLoadingSubtasks(false));
     }
   }, [task, open]);
 
@@ -211,6 +219,33 @@ export function TaskDetailModal({ task, agents, open, onOpenChange }: TaskDetail
     }
     setApprovingTask(false);
   };
+
+  const handleAddSubtask = async () => {
+    if (!task || !newSubtaskTitle.trim() || addingSubtask) return;
+    setAddingSubtask(true);
+    const subtask = await createSubtask(task.id, newSubtaskTitle.trim());
+    if (subtask) {
+      setSubtasks(prev => [...prev, subtask]);
+      setNewSubtaskTitle('');
+    }
+    setAddingSubtask(false);
+  };
+
+  const handleToggleSubtask = async (subtask: Subtask) => {
+    if (!task) return;
+    const newStatus = subtask.status === 'done' ? 'todo' : 'done';
+    setSubtasks(prev => prev.map(s => s.id === subtask.id ? { ...s, status: newStatus } : s));
+    await updateSubtask(task.id, subtask.id, { status: newStatus });
+  };
+
+  const handleDeleteSubtask = async (subtaskId: string) => {
+    if (!task) return;
+    setSubtasks(prev => prev.filter(s => s.id !== subtaskId));
+    await deleteSubtask(task.id, subtaskId);
+  };
+
+  const subtasksDone = subtasks.filter(s => s.status === 'done').length;
+  const subtaskProgress = subtasks.length > 0 ? Math.round((subtasksDone / subtasks.length) * 100) : 0;
 
   if (!task) return null;
 
@@ -499,6 +534,99 @@ export function TaskDetailModal({ task, agents, open, onOpenChange }: TaskDetail
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Subtasks Section */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-accent-secondary flex items-center gap-2">
+              <ListChecks className="w-4 h-4" />
+              Subtasks
+              {subtasks.length > 0 && (
+                <span className="text-xs font-normal text-accent-muted">
+                  ({subtasksDone}/{subtasks.length})
+                </span>
+              )}
+            </h3>
+
+            {/* Progress bar */}
+            {subtasks.length > 0 && (
+              <div className="space-y-1">
+                <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-cyber-green to-accent-primary rounded-full transition-all duration-300"
+                    style={{ width: `${subtaskProgress}%` }}
+                  />
+                </div>
+                <p className="text-xs text-accent-muted text-right">{subtaskProgress}%</p>
+              </div>
+            )}
+
+            {loadingSubtasks ? (
+              <div className="text-center py-4">
+                <div className="inline-block w-5 h-5 border-2 border-accent-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {subtasks.map((subtask) => (
+                  <div
+                    key={subtask.id}
+                    className="flex items-center gap-3 bg-white/[0.02] rounded-xl px-4 py-2.5 border border-white/5 group"
+                  >
+                    <button
+                      onClick={() => handleToggleSubtask(subtask)}
+                      className="flex-shrink-0 text-accent-muted hover:text-cyber-green transition-colors"
+                    >
+                      {subtask.status === 'done' ? (
+                        <CheckSquare className="w-5 h-5 text-cyber-green" />
+                      ) : (
+                        <Square className="w-5 h-5" />
+                      )}
+                    </button>
+                    <span className={`flex-1 text-sm ${subtask.status === 'done' ? 'text-accent-muted line-through' : 'text-white'}`}>
+                      {subtask.title}
+                    </span>
+                    <button
+                      onClick={() => handleDeleteSubtask(subtask.id)}
+                      className="p-1 rounded-lg text-accent-muted hover:text-red-400 hover:bg-red-400/10 transition-all opacity-0 group-hover:opacity-100"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+
+                {/* Add subtask input */}
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={newSubtaskTitle}
+                    onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleAddSubtask(); }}
+                    placeholder="Add a subtask..."
+                    className="
+                      flex-1 bg-white/[0.02] border border-dashed border-white/10 rounded-xl
+                      px-4 py-2.5 text-sm text-white
+                      placeholder:text-accent-muted
+                      focus:outline-none focus:ring-2 focus:ring-accent-primary/50
+                      focus:border-accent-primary/50
+                    "
+                    disabled={addingSubtask}
+                  />
+                  <button
+                    onClick={handleAddSubtask}
+                    disabled={!newSubtaskTitle.trim() || addingSubtask}
+                    className="
+                      p-2.5 rounded-xl
+                      bg-accent-primary/20 text-accent-primary
+                      hover:bg-accent-primary/30
+                      disabled:opacity-50 disabled:cursor-not-allowed
+                      transition-all duration-200
+                    "
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Metadata Grid */}
