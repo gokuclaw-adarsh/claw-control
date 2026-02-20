@@ -1,11 +1,11 @@
 ---
 name: claw-control
-description: Complete AI agent operating system setup with Kanban task management. Use when setting up multi-agent coordination, task tracking, or configuring an agent team. Includes theme selection (DBZ, One Piece, Marvel, etc.), workflow enforcement (all tasks through board), browser setup, GitHub integration, and memory enhancement (Supermemory, QMD).
+description: Complete AI agent operating system with Kanban task management, multi-agent coordination, human approval gates, and autonomous task discovery via heartbeat polling. Use when setting up multi-agent coordination, task tracking, or configuring an agent team. Includes theme selection (DBZ, One Piece, Marvel, etc.), workflow enforcement (all tasks through board), browser setup, GitHub integration, and memory enhancement (Supermemory, QMD).
 ---
 
-# Claw Control - Agent Operating System
+# Claw Control - Agent Operating System (v2)
 
-Complete setup for AI agent coordination with real-time Kanban dashboard.
+Complete setup for AI agent coordination with real-time Kanban dashboard, featuring autonomous task discovery, multi-agent collaboration, and human approval gates.
 
 ## What This Skill Does
 
@@ -16,6 +16,32 @@ Complete setup for AI agent coordination with real-time Kanban dashboard.
 5. **Setup browser** - Required for autonomous actions
 6. **Setup GitHub** - Enable autonomous deployments
 7. **Enhance memory** - Integrate Supermemory and QMD
+
+---
+
+## 🚀 v2 Features Overview
+
+Claw Control v2 includes powerful new capabilities for multi-agent orchestration:
+
+| Feature | Description |
+|---------|-------------|
+| **Task Comments** | Collaborate on tasks with POST/GET /api/tasks/:id/comments |
+| **Task Context** | Rich context field for passing additional data to agents |
+| **Task Deliverables** | deliverable_type + deliverable_content for concrete outputs |
+| **Agent Heartbeat Polling** | Autonomous task discovery via PUT /api/agents/:id/heartbeat |
+| **Human Approval Gates** | requires_approval, approved_at, approved_by for quality control |
+| **Multi-Agent Assignment** | Multiple agents can work on one task with roles (lead/contributor/reviewer) |
+| **Task Subtasks** | Break down complex tasks with POST/GET/PUT/DELETE /api/tasks/:id/subtasks |
+
+### Jarvis Multi-Agent Pattern (Best Practices)
+
+The Jarvis pattern enables truly autonomous multi-agent systems:
+
+- **15-min Heartbeat Polling**: Each agent polls every 15 minutes to discover and claim tasks
+- **Hierarchical Structure**: Coordinator → Specialists (coordinator delegates, specialists execute)
+- **Self-Discovery**: Agents query the board for unassigned tasks and claim them autonomously
+- **Collaborative Tasks**: Multiple agents can contribute to a single task
+- **Deliverable-First**: Every task MUST have a clear deliverable
 
 ---
 
@@ -945,6 +971,114 @@ curl -X PUT $CLAW_CONTROL_URL/api/tasks/ID \
   -H "x-api-key: $CLAW_CONTROL_API_KEY" \
   -d '{"status": "todo", "agent_id": AGENT_ID}'
 ```
+
+### v2 Task API (Extended)
+
+```bash
+# ==== TASK COMMENTS ====
+
+# Add comment to task
+curl -X POST $CLAW_CONTROL_URL/api/tasks/ID/comments \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $CLAW_CONTROL_API_KEY" \
+  -d '{"content": "Great progress on this!", "author": "agent"}'
+
+# Get comments for task
+curl -X GET $CLAW_CONTROL_URL/api/tasks/ID/comments \
+  -H "x-api-key: $CLAW_CONTROL_API_KEY"
+
+# ==== TASK CONTEXT ====
+
+# Update task with rich context
+curl -X PUT $CLAW_CONTROL_URL/api/tasks/ID \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $CLAW_CONTROL_API_KEY" \
+  -d '{
+    "title": "Build API endpoint",
+    "context": "This is part of the user auth epic. Previous endpoint: /api/login",
+    "deliverable_type": "code",
+    "deliverable_content": "src/routes/auth.ts"
+  }'
+
+# ==== TASK DELIVERABLES ====
+
+# Every task should have a deliverable
+# deliverable_type: code | docs | config | test | review | decision | other
+# deliverable_content: URL, file path, or description of the deliverable
+
+# ==== HUMAN APPROVAL GATES ====
+
+# Create task requiring approval
+curl -X POST $CLAW_CONTROL_URL/api/tasks \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $CLAW_CONTROL_API_KEY" \
+  -d '{
+    "title": "Deploy to production",
+    "requires_approval": true
+  }'
+
+# Approve a task (human or authorized agent)
+curl -X PUT $CLAW_CONTROL_URL/api/tasks/ID/approve \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $CLAW_CONTROL_API_KEY" \
+  -d '{"approved_by": "human_name"}'
+
+# ==== MULTI-AGENT TASK ASSIGNMENT ====
+
+# Add assignee to task (with role)
+curl -X POST $CLAW_CONTROL_URL/api/tasks/ID/assignees \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $CLAW_CONTROL_API_KEY" \
+  -d '{"agent_id": 2, "role": "lead"}'
+# Roles: lead | contributor | reviewer
+
+# Get assignees for task
+curl -X GET $CLAW_CONTROL_URL/api/tasks/ID/assignees \
+  -H "x-api-key: $CLAW_CONTROL_API_KEY"
+
+# Remove assignee from task
+curl -X DELETE $CLAW_CONTROL_URL/api/tasks/ID/assignees/AGENT_ID \
+  -H "x-api-key: $CLAW_CONTROL_API_KEY"
+
+# ==== TASK SUBTASKS ====
+
+# Create subtask
+curl -X POST $CLAW_CONTROL_URL/api/tasks/ID/subtasks \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $CLAW_CONTROL_API_KEY" \
+  -d '{"title": "Design API schema", "status": "todo"}'
+
+# Get subtasks
+curl -X GET $CLAW_CONTROL_URL/api/tasks/ID/subtasks \
+  -H "x-api-key: $CLAW_CONTROL_API_KEY"
+
+# Update subtask (including progress)
+curl -X PUT $CLAW_CONTROL_URL/api/tasks/ID/subtasks/SUBTASK_ID \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $CLAW_CONTROL_API_KEY" \
+  -d '{"status": "in_progress", "progress": 50}'
+
+# Delete subtask
+curl -X DELETE $CLAW_CONTROL_URL/api/tasks/ID/subtasks/SUBTASK_ID \
+  -H "x-api-key: $CLAW_CONTROL_API_KEY"
+
+# ==== AGENT HEARTBEAT POLLING ====
+
+# Agent heartbeat (reports liveness and gets next task)
+curl -X PUT $CLAW_CONTROL_URL/api/agents/ID/heartbeat \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $CLAW_CONTROL_API_KEY" \
+  -d '{"status": "idle", "current_task_id": null}'
+
+# Get next available task for agent
+curl -X GET $CLAW_CONTROL_URL/api/agents/ID/next-task \
+  -H "x-api-key: $CLAW_CONTROL_API_KEY"
+
+# ==== AGENT STATUS (LIVENESS) ====
+
+# Agent status values: idle | working | blocked | offline
+# Last heartbeat timestamp indicates liveness
+```
 ```
 
 ### 3. Update SOUL.md (Optional but Recommended)
@@ -1108,6 +1242,140 @@ curl -X PUT <BACKEND_URL>/api/tasks/ID \
 
 **Frequency:** Every heartbeat (typically every 30 min)
 **Goal:** Keep the board accurate, current, and actionable
+
+---
+
+## 💓 Agent Heartbeat Polling (v2)
+
+**For autonomous agents using the Jarvis pattern:**
+
+Each agent should poll every 15 minutes to:
+1. Report their liveness via `PUT /api/agents/:id/heartbeat`
+2. Get the next available task via `GET /api/agents/:id/next-task`
+3. Self-assign and begin work if tasks are available
+
+```bash
+# Agent heartbeat
+curl -X PUT <BACKEND_URL>/api/agents/AGENT_ID/heartbeat \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: <API_KEY>" \
+  -d '{"status": "working", "current_task_id": 123}'
+
+# Agent gets next task (self-discovery)
+curl -X GET <BACKEND_URL>/api/agents/AGENT_ID/next-task \
+  -H "x-api-key: <API_KEY>"
+```
+
+**Agent status values:**
+- `idle` - Waiting for work
+- `working` - Currently executing a task
+- `blocked` - Waiting on dependency or human
+- `offline` - Not responding
+
+**Liveness indicator:** `last_heartbeat` timestamp on agent record. If >15 min old, agent may be stuck.
+
+---
+
+## 🤖 Jarvis Multi-Agent Pattern (v2 Best Practices)
+
+The Jarvis pattern enables fully autonomous multi-agent coordination where agents self-discover and claim tasks.
+
+### Core Principles
+
+1. **15-Minute Heartbeat Polling**
+   - Each agent polls every 15 minutes via `PUT /api/agents/:id/heartbeat`
+   - Heartbeat reports agent status (idle/working/blocked)
+   - Response includes `next_task` if one is assigned or available
+
+2. **Hierarchical Agent Structure**
+   ```
+   Coordinator (Goku)
+       ↓ delegates
+   Specialists (Vegeta, Bulma, Gohan, Piccolo, Trunks)
+       ↓ execute
+   Report back to coordinator
+   ```
+
+3. **Self-Discovery & Task Claiming**
+   - Agents query `GET /api/agents/:id/next-task` to find work
+   - Unassigned tasks in "backlog" or "todo" are fair game
+   - Agent claims task by updating `agent_id` and status
+
+4. **Multi-Agent Collaboration**
+   - Multiple agents can work on ONE task via `/api/tasks/:id/assignees`
+   - Roles define responsibility: lead | contributor | reviewer
+   - Use subtasks to parallelize work
+
+5. **Deliverable-First Thinking**
+   - EVERY task must have a deliverable
+   - Set `deliverable_type` and `deliverable_content` on creation
+   - No task is complete until deliverable is produced
+
+### Agent Heartbeat Loop
+
+```javascript
+// Pseudocode for autonomous agent
+async function heartbeatLoop(agentId, intervalMs = 15 * 60 * 1000) {
+  while (true) {
+    // 1. Report heartbeat
+    const heartbeat = await fetch(`/api/agents/${agentId}/heartbeat`, {
+      method: 'PUT',
+      headers: { 'x-api-key': API_KEY },
+      body: JSON.stringify({ status: 'idle' })
+    });
+    
+    // 2. Check for assigned task or claim new one
+    const response = await fetch(`/api/agents/${agentId}/next-task`, {
+      headers: { 'x-api-key': API_KEY }
+    });
+    const { task } = await response.json();
+    
+    if (task) {
+      // 3. Execute task
+      await executeTask(task);
+      
+      // 4. Update task status
+      await fetch(`/api/tasks/${task.id}`, {
+        method: 'PUT',
+        headers: { 'x-api-key': API_KEY },
+        body: JSON.stringify({ 
+          status: 'completed',
+          deliverable_content: '...' 
+        })
+      });
+    }
+    
+    // 5. Wait before next poll
+    await sleep(intervalMs);
+  }
+}
+```
+
+### Task Assignment Best Practices
+
+| Scenario | Approach |
+|----------|----------|
+| Single specialist | Assign via `agent_id` on task |
+| Lead + contributors | Use `/api/tasks/:id/assignees` with roles |
+| Parallel work | Create subtasks, assign different agents |
+| Review required | Add reviewer role, set `requires_approval: true` |
+
+### Human Approval Gates
+
+For critical tasks that require human sign-off:
+
+```bash
+# Create task requiring approval
+curl -X POST $URL/api/tasks \
+  -d '{"title": "Deploy v2.0", "requires_approval": true}'
+
+# Human approves
+curl -X PUT $URL/api/tasks/ID/approve \
+  -d '{"approved_by": "Adarsh"}'
+
+# Agent checks before proceeding
+curl -X GET $URL/api/tasks/ID  # Check approved_at != null
+```
 
 ---
 
