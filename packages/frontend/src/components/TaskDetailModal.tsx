@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { X, Bot, Clock, Calendar, Tag, Activity, MessageSquare, Send, User, Paperclip, FileText, Package } from 'lucide-react';
+import { X, Bot, Clock, Calendar, Tag, Activity, MessageSquare, Send, User, Paperclip, FileText, Package, Users, Plus, Trash2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -145,6 +145,13 @@ export function TaskDetailModal({ task, agents, open, onOpenChange }: TaskDetail
     setSavingContext(false);
   };
 
+  const handleSaveDeliverable = async () => {
+    if (!task || savingDeliverable || !deliverableType) return;
+    setSavingDeliverable(true);
+    await updateTaskDeliverable(task.id, deliverableType, deliverableContent);
+    setSavingDeliverable(false);
+  };
+
   if (!task) return null;
 
   const attachments = task.attachments || [];
@@ -265,6 +272,77 @@ export function TaskDetailModal({ task, agents, open, onOpenChange }: TaskDetail
               )}
               {context !== (task.context || '') && !savingContext && (
                 <p className="text-xs text-accent-muted mt-1">Changes save on blur</p>
+              )}
+            </div>
+          </div>
+
+          {/* Deliverable */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-accent-secondary flex items-center gap-2">
+              <Package className="w-4 h-4" />
+              Deliverable
+              {deliverableType && (
+                <span className="text-xs font-normal px-2 py-0.5 rounded-md bg-cyber-green/10 text-cyber-green border border-cyber-green/30">
+                  {deliverableType}
+                </span>
+              )}
+            </h3>
+            <div className="space-y-3">
+              <select
+                value={deliverableType}
+                onChange={(e) => setDeliverableType(e.target.value)}
+                className="
+                  w-full bg-white/[0.02] border border-white/10 rounded-xl
+                  px-4 py-2.5 text-sm text-white
+                  focus:outline-none focus:ring-2 focus:ring-accent-primary/50
+                  focus:border-accent-primary/50
+                  appearance-none cursor-pointer
+                "
+              >
+                <option value="" className="bg-claw-surface">Select type...</option>
+                <option value="document" className="bg-claw-surface">📄 Document</option>
+                <option value="spec" className="bg-claw-surface">📋 Spec</option>
+                <option value="code" className="bg-claw-surface">💻 Code</option>
+                <option value="review" className="bg-claw-surface">🔍 Review</option>
+                <option value="design" className="bg-claw-surface">🎨 Design</option>
+                <option value="other" className="bg-claw-surface">📦 Other</option>
+              </select>
+              <div className="relative">
+                <textarea
+                  value={deliverableContent}
+                  onChange={(e) => setDeliverableContent(e.target.value)}
+                  onBlur={handleSaveDeliverable}
+                  placeholder="Add deliverable content (URL, description, or paste content)..."
+                  className="
+                    w-full bg-white/[0.02] border border-white/10 rounded-xl
+                    px-4 py-3 text-sm text-white
+                    placeholder:text-accent-muted
+                    focus:outline-none focus:ring-2 focus:ring-accent-primary/50
+                    focus:border-accent-primary/50
+                    resize-y
+                    min-h-[80px]
+                  "
+                  disabled={savingDeliverable}
+                />
+                {savingDeliverable && (
+                  <div className="absolute top-3 right-3">
+                    <div className="w-4 h-4 border-2 border-accent-primary border-t-transparent rounded-full animate-spin" />
+                  </div>
+                )}
+              </div>
+              {deliverableType && deliverableContent && (
+                <button
+                  onClick={handleSaveDeliverable}
+                  disabled={savingDeliverable}
+                  className="
+                    px-4 py-2 text-xs font-medium rounded-lg
+                    bg-cyber-green/10 text-cyber-green border border-cyber-green/30
+                    hover:bg-cyber-green/20 transition-all duration-200
+                    disabled:opacity-50
+                  "
+                >
+                  {savingDeliverable ? 'Saving...' : 'Save Deliverable'}
+                </button>
               )}
             </div>
           </div>

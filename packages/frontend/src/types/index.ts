@@ -21,6 +21,9 @@ export interface Task {
   deliverableContent?: string;
   status: TaskStatus;
   agentId?: string;
+  requires_approval?: boolean;
+  approved_at?: string;
+  approved_by?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -74,6 +77,18 @@ export interface KanbanData {
   in_progress: Task[];
   review: Task[];
   completed: Task[];
+}
+
+/** Task assignee */
+export interface TaskAssignee {
+  id: string;
+  task_id: string;
+  agent_id: string;
+  role: string;
+  assigned_at: string;
+  agent_name?: string;
+  agent_avatar?: string;
+  agent_status?: string;
 }
 
 /** Comment on a task */

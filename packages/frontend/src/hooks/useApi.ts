@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import type { Agent, Task, Message, KanbanData, TaskStatus, Comment } from '../types';
+import type { Agent, Task, Message, KanbanData, TaskStatus, Comment, TaskAssignee } from '../types';
 
 /** 
  * Base URL for API requests.
@@ -45,6 +45,9 @@ export function transformTask(apiTask: Record<string, unknown>): Task {
     deliverableContent: apiTask.deliverable_content ? String(apiTask.deliverable_content) : undefined,
     status: (apiTask.status as TaskStatus) || 'backlog',
     agentId: apiTask.agent_id ? String(apiTask.agent_id) : undefined,
+    requires_approval: apiTask.requires_approval === true || apiTask.requires_approval === 1,
+    approved_at: apiTask.approved_at ? String(apiTask.approved_at) : undefined,
+    approved_by: apiTask.approved_by ? String(apiTask.approved_by) : undefined,
     createdAt: String(apiTask.created_at || new Date().toISOString()),
     updatedAt: String(apiTask.updated_at || new Date().toISOString()),
   };
@@ -193,6 +196,42 @@ export async function updateTaskContext(taskId: string, context: string): Promis
 }
 
 /**
+ * Approve a task that requires human approval.
+ */
+export async function approveTask(taskId: string, approvedBy: string): Promise<Task | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/tasks/${taskId}/approve`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ approved_by: approvedBy }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return transformTask(data);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Toggle requires_approval on a task.
+ */
+export async function updateTaskApproval(taskId: string, requiresApproval: boolean): Promise<Task | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/tasks/${taskId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requires_approval: requiresApproval }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return transformTask(data);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Updates a task's deliverable fields.
  * @param taskId - The task ID to update
  * @param deliverableType - Type of deliverable
@@ -215,6 +254,66 @@ export async function updateTaskDeliverable(
     return transformTask(data);
   } catch {
     return null;
+  }
+}
+
+/**
+ * Fetches assignees for a specific task.
+ */
+export async function fetchTaskAssignees(taskId: string): Promise<TaskAssignee[]> {
+  try {
+    const res = await fetch(`${API_BASE}/api/tasks/${taskId}/assignees`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data.map((a: Record<string, unknown>) => ({
+      id: String(a.id),
+      task_id: String(a.task_id),
+      agent_id: String(a.agent_id),
+      role: String(a.role || 'contributor'),
+      assigned_at: String(a.assigned_at || ''),
+      agent_name: a.agent_name ? String(a.agent_name) : undefined,
+      agent_avatar: a.agent_avatar ? String(a.agent_avatar) : undefined,
+      agent_status: a.agent_status ? String(a.agent_status) : undefined,
+    })) : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Add an assignee to a task.
+ */
+export async function addTaskAssignee(taskId: string, agentId: number, role = 'contributor'): Promise<TaskAssignee | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/tasks/${taskId}/assignees`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agent_id: agentId, role }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return {
+      id: String(data.id),
+      task_id: String(data.task_id),
+      agent_id: String(data.agent_id),
+      role: String(data.role || 'contributor'),
+      assigned_at: String(data.assigned_at || ''),
+      agent_name: data.agent_name ? String(data.agent_name) : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Remove an assignee from a task.
+ */
+export async function removeTaskAssignee(taskId: string, agentId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/api/tasks/${taskId}/assignees/${agentId}`, { method: 'DELETE' });
+    return res.ok;
+  } catch {
+    return false;
   }
 }
 

@@ -17,7 +17,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Inbox, ListTodo, Eye, CheckCircle2, GripVertical, Clock, Play, Loader2 } from 'lucide-react';
+import { Inbox, ListTodo, Eye, CheckCircle2, GripVertical, Clock, Play, Loader2, Package } from 'lucide-react';
 import { AgentAvatar } from './AgentAvatar';
 import type { Task, KanbanData, TaskStatus, Agent } from '../types';
 import { TaskDetailModal } from './TaskDetailModal';
@@ -143,6 +143,16 @@ function TaskCard({ task, agents, isDragging, onClick }: TaskCardProps) {
         </p>
       )}
       
+      {/* Deliverable Badge */}
+      {task.deliverableType && (
+        <div className="flex items-center gap-1.5 mt-2">
+          <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-md bg-cyber-green/10 text-cyber-green border border-cyber-green/30">
+            <Package className="w-3 h-3" />
+            {task.deliverableType}
+          </span>
+        </div>
+      )}
+
       {/* Footer: Agent + Timestamp */}
       <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/5 gap-2">
         {/* Agent Badge */}

@@ -211,7 +211,7 @@ fastify.get('/api/tasks', {
   }
 }, async (request, reply) => {
   const { status, agent_id, limit, offset } = request.query;
-  let query = 'SELECT * FROM tasks';
+  let query = 'SELECT t.*, (SELECT COUNT(*) FROM task_assignees WHERE task_id = t.id) as assignees_count FROM tasks t';
   const params = [];
   const conditions = [];
 
@@ -359,7 +359,8 @@ fastify.put('/api/tasks/:id', {
         tags: { type: 'array', items: { type: 'string' } },
         agent_id: { type: 'integer' },
         deliverable_type: { type: 'string', enum: ['document', 'spec', 'code', 'review', 'design', 'other'], description: 'Type of deliverable' },
-        deliverable_content: { type: 'string', description: 'Deliverable content (URL, text, etc.)' }
+        deliverable_content: { type: 'string', description: 'Deliverable content (URL, text, etc.)' },
+        requires_approval: { type: 'boolean', description: 'Whether task requires human approval before starting' }
       }
     },
     response: {
@@ -369,7 +370,22 @@ fastify.put('/api/tasks/:id', {
   }
 }, async (request, reply) => {
   const { id } = request.params;
-  const { title, description, context, status, tags, agent_id, deliverable_type, deliverable_content } = request.body;
+  const { title, description, context, status, tags, agent_id, deliverable_type, deliverable_content, requires_approval } = request.body;
+
+  // Validation: task requiring approval cannot move to in_progress without approval
+  if (status === 'in_progress') {
+    const { rows: existing } = await dbAdapter.query(
+      `SELECT requires_approval, approved_at FROM tasks WHERE id = ${param(1)}`,
+      [id]
+    );
+    if (existing.length > 0) {
+      const task = existing[0];
+      const needsApproval = dbAdapter.isSQLite() ? task.requires_approval === 1 : task.requires_approval === true;
+      if (needsApproval && !task.approved_at) {
+        return reply.status(400).send({ error: 'Task requires human approval before it can move to in_progress. Please approve the task first.' });
+      }
+    }
+  }
 
   // Validation: task cannot move to "review" without a deliverable
   if (status === 'review') {
@@ -403,10 +419,11 @@ fastify.put('/api/tasks/:id', {
          agent_id = COALESCE(${param(6)}, agent_id),
          deliverable_type = COALESCE(${param(7)}, deliverable_type),
          deliverable_content = COALESCE(${param(8)}, deliverable_content),
+         requires_approval = COALESCE(${param(9)}, requires_approval),
          updated_at = ${nowFn}
-     WHERE id = ${param(9)}
+     WHERE id = ${param(10)}
      RETURNING *`,
-    [title, description, context, status, tagsValue, agent_id, deliverable_type, deliverable_content, id]
+    [title, description, context, status, tagsValue, agent_id, deliverable_type, deliverable_content, requires_approval, id]
   );
 
   if (rows.length === 0) {
@@ -417,6 +434,78 @@ fastify.put('/api/tasks/:id', {
   broadcast('task-updated', task);
   dispatchWebhook('task-updated', task);
   return task;
+});
+
+/**
+ * PUT /api/tasks/:id/approve - Approve a task that requires human approval.
+ * @param {object} request.params - URL parameters
+ * @param {string} request.params.id - Task ID
+ * @param {object} request.body - Approval details
+ * @returns {object} Updated task object
+ */
+fastify.put('/api/tasks/:id/approve', {
+  ...withAuth,
+  schema: {
+    description: 'Approve a task that requires human approval',
+    tags: ['Tasks'],
+    security: [{ apiKey: [] }],
+    params: {
+      type: 'object',
+      properties: {
+        id: { type: 'integer', description: 'Task ID' }
+      }
+    },
+    body: {
+      type: 'object',
+      properties: {
+        approved_by: { type: 'string', description: 'Name of the person approving' }
+      },
+      required: ['approved_by']
+    },
+    response: {
+      200: { $ref: 'Task#' },
+      400: { $ref: 'Error#' },
+      404: { $ref: 'Error#' }
+    }
+  }
+}, async (request, reply) => {
+  const { id } = request.params;
+  const { approved_by } = request.body;
+  const nowFn = dbAdapter.isSQLite() ? "datetime('now')" : 'NOW()';
+
+  // Check task exists and requires approval
+  const { rows: existing } = await dbAdapter.query(
+    `SELECT * FROM tasks WHERE id = ${param(1)}`,
+    [id]
+  );
+
+  if (existing.length === 0) {
+    return reply.status(404).send({ error: 'Task not found' });
+  }
+
+  const task = existing[0];
+  const needsApproval = dbAdapter.isSQLite() ? task.requires_approval === 1 : task.requires_approval === true;
+  
+  if (!needsApproval) {
+    return reply.status(400).send({ error: 'Task does not require approval' });
+  }
+
+  if (task.approved_at) {
+    return reply.status(400).send({ error: 'Task is already approved' });
+  }
+
+  const { rows } = await dbAdapter.query(
+    `UPDATE tasks 
+     SET approved_at = ${nowFn}, approved_by = ${param(1)}, updated_at = ${nowFn}
+     WHERE id = ${param(2)}
+     RETURNING *`,
+    [approved_by, id]
+  );
+
+  const updatedTask = rows[0];
+  broadcast('task-updated', updatedTask);
+  dispatchWebhook('task-updated', updatedTask);
+  return updatedTask;
 });
 
 /**
@@ -505,7 +594,8 @@ fastify.get('/api/tasks/:id', {
 
   const { rows } = await dbAdapter.query(
     `SELECT t.*, 
-            (SELECT COUNT(*) FROM task_comments WHERE task_id = t.id) as comments_count
+            (SELECT COUNT(*) FROM task_comments WHERE task_id = t.id) as comments_count,
+            (SELECT COUNT(*) FROM task_assignees WHERE task_id = t.id) as assignees_count
      FROM tasks t 
      WHERE t.id = ${param(1)}`,
     [id]
@@ -633,6 +723,133 @@ fastify.post('/api/tasks/:id/comments', {
   return reply.status(201).send(comment);
 });
 
+// ============ TASK ASSIGNEES API ============
+
+/**
+ * GET /api/tasks/:id/assignees - List assignees for a task.
+ */
+fastify.get('/api/tasks/:id/assignees', {
+  schema: {
+    description: 'List assignees for a task with agent details',
+    tags: ['Tasks'],
+    params: { type: 'object', properties: { id: { type: 'integer' } } },
+    response: {
+      200: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            id: { type: 'integer' },
+            task_id: { type: 'integer' },
+            agent_id: { type: 'integer' },
+            role: { type: 'string' },
+            assigned_at: { type: 'string' },
+            agent_name: { type: 'string', nullable: true },
+            agent_avatar: { type: 'string', nullable: true },
+            agent_status: { type: 'string', nullable: true }
+          }
+        }
+      }
+    }
+  }
+}, async (request, reply) => {
+  const { id } = request.params;
+  const { rows } = await dbAdapter.query(
+    `SELECT ta.*, a.name as agent_name, a.avatar as agent_avatar, a.status as agent_status
+     FROM task_assignees ta
+     LEFT JOIN agents a ON ta.agent_id = a.id
+     WHERE ta.task_id = ${param(1)}
+     ORDER BY ta.assigned_at`,
+    [id]
+  );
+  return rows;
+});
+
+/**
+ * POST /api/tasks/:id/assignees - Add an assignee to a task.
+ */
+fastify.post('/api/tasks/:id/assignees', {
+  ...withAuth,
+  schema: {
+    description: 'Add an agent as assignee to a task',
+    tags: ['Tasks'],
+    security: [{ apiKey: [] }],
+    params: { type: 'object', properties: { id: { type: 'integer' } } },
+    body: {
+      type: 'object',
+      required: ['agent_id'],
+      properties: {
+        agent_id: { type: 'integer' },
+        role: { type: 'string', default: 'contributor' }
+      }
+    },
+    response: {
+      201: { type: 'object', properties: { id: { type: 'integer' }, task_id: { type: 'integer' }, agent_id: { type: 'integer' }, role: { type: 'string' }, assigned_at: { type: 'string' } } },
+      400: { $ref: 'Error#' },
+      404: { $ref: 'Error#' },
+      409: { $ref: 'Error#' }
+    }
+  }
+}, async (request, reply) => {
+  const { id } = request.params;
+  const { agent_id, role = 'contributor' } = request.body;
+
+  // Verify task exists
+  const { rows: taskRows } = await dbAdapter.query(`SELECT id FROM tasks WHERE id = ${param(1)}`, [id]);
+  if (taskRows.length === 0) return reply.status(404).send({ error: 'Task not found' });
+
+  // Verify agent exists
+  const { rows: agentRows } = await dbAdapter.query(`SELECT id, name FROM agents WHERE id = ${param(1)}`, [agent_id]);
+  if (agentRows.length === 0) return reply.status(404).send({ error: 'Agent not found' });
+
+  try {
+    const { rows } = await dbAdapter.query(
+      `INSERT INTO task_assignees (task_id, agent_id, role) VALUES (${param(1)}, ${param(2)}, ${param(3)}) RETURNING *`,
+      [id, agent_id, role]
+    );
+    const assignee = { ...rows[0], agent_name: agentRows[0].name };
+    broadcast('assignee-added', { task_id: parseInt(id), assignee });
+    return reply.status(201).send(assignee);
+  } catch (err) {
+    if (err.message && (err.message.includes('UNIQUE') || err.message.includes('unique') || err.message.includes('duplicate'))) {
+      return reply.status(409).send({ error: 'Agent already assigned to this task' });
+    }
+    throw err;
+  }
+});
+
+/**
+ * DELETE /api/tasks/:id/assignees/:agent_id - Remove an assignee from a task.
+ */
+fastify.delete('/api/tasks/:id/assignees/:agent_id', {
+  ...withAuth,
+  schema: {
+    description: 'Remove an agent from task assignees',
+    tags: ['Tasks'],
+    security: [{ apiKey: [] }],
+    params: {
+      type: 'object',
+      properties: {
+        id: { type: 'integer' },
+        agent_id: { type: 'integer' }
+      }
+    },
+    response: {
+      200: { type: 'object', properties: { success: { type: 'boolean' } } },
+      404: { $ref: 'Error#' }
+    }
+  }
+}, async (request, reply) => {
+  const { id, agent_id } = request.params;
+  const { rows } = await dbAdapter.query(
+    `DELETE FROM task_assignees WHERE task_id = ${param(1)} AND agent_id = ${param(2)} RETURNING *`,
+    [id, agent_id]
+  );
+  if (rows.length === 0) return reply.status(404).send({ error: 'Assignee not found' });
+  broadcast('assignee-removed', { task_id: parseInt(id), agent_id: parseInt(agent_id) });
+  return { success: true };
+});
+
 /** @type {Record<string, string|null>} Status progression map for task workflow */
 const STATUS_PROGRESSION = {
   'backlog': 'todo',
@@ -695,6 +912,17 @@ fastify.post('/api/tasks/:id/progress', {
       error: 'Task already completed',
       task 
     });
+  }
+
+  // Block progression to in_progress if approval is required but not granted
+  if (nextStatus === 'in_progress') {
+    const needsApproval = dbAdapter.isSQLite() ? task.requires_approval === 1 : task.requires_approval === true;
+    if (needsApproval && !task.approved_at) {
+      return reply.status(400).send({ 
+        error: 'Task requires human approval before it can move to in_progress. Please approve the task first.',
+        task 
+      });
+    }
   }
 
   const { rows } = await dbAdapter.query(
