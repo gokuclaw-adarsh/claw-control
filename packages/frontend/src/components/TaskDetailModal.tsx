@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { X, Bot, Clock, Calendar, Tag, Activity, MessageSquare, Send, User, Paperclip, FileText } from 'lucide-react';
+import { X, Bot, Clock, Calendar, Tag, Activity, MessageSquare, Send, User, Paperclip, FileText, Package } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from './ui/dialog';
 import type { Task, TaskStatus, Agent, Comment } from '../types';
-import { fetchTaskComments, createTaskComment, updateTaskContext } from '../hooks/useApi';
+import { fetchTaskComments, createTaskComment, updateTaskContext, updateTaskDeliverable } from '../hooks/useApi';
 
 // Status configuration with labels and colors
 const statusConfig: Record<TaskStatus, { 
@@ -96,11 +96,16 @@ export function TaskDetailModal({ task, agents, open, onOpenChange }: TaskDetail
   const [submitting, setSubmitting] = useState(false);
   const [context, setContext] = useState(task?.context || '');
   const [savingContext, setSavingContext] = useState(false);
+  const [deliverableType, setDeliverableType] = useState(task?.deliverableType || '');
+  const [deliverableContent, setDeliverableContent] = useState(task?.deliverableContent || '');
+  const [savingDeliverable, setSavingDeliverable] = useState(false);
 
-  // Sync context when task changes
+  // Sync context and deliverable when task changes
   useEffect(() => {
     if (task) {
       setContext(task.context || '');
+      setDeliverableType(task.deliverableType || '');
+      setDeliverableContent(task.deliverableContent || '');
     }
   }, [task]);
 

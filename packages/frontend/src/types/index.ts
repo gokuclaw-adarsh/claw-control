@@ -17,6 +17,8 @@ export interface Task {
   description?: string;
   context?: string;
   attachments?: string[];
+  deliverableType?: string;
+  deliverableContent?: string;
   status: TaskStatus;
   agentId?: string;
   createdAt?: string;
@@ -49,6 +51,10 @@ export interface Agent {
   bmad_source?: string;
   /** Agent role */
   role?: string;
+  /** Last heartbeat timestamp */
+  last_heartbeat?: string;
+  /** Computed liveness: online/stale/offline */
+  liveness?: 'online' | 'stale' | 'offline';
 }
 
 /** Message entity representing an agent's activity log entry */

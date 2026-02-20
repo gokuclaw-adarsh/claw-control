@@ -19,8 +19,9 @@ const { withAuth, isAuthEnabled } = require('./auth');
 const v3Migration = require('./migrations/v3_mentions_profiles');
 const v4Migration = require('./migrations/v4_task_comments');
 const v5Migration = require('./migrations/v5_task_context');
-const v6Migration = require('./migrations/v6_agent_heartbeat');
-const v6Migration = require('./migrations/v6_approval_gates');
+const v6HeartbeatMigration = require('./migrations/v6_agent_heartbeat');
+const v6ApprovalMigration = require('./migrations/v6_approval_gates');
+const v6AssigneesMigration = require('./migrations/v6_task_assignees');
 const packageJson = require('../package.json');
 
 /**
@@ -99,6 +100,9 @@ fastify.addSchema({
       items: { type: 'string' },
       description: 'Task tags' 
     },
+    requires_approval: { type: 'boolean', description: 'Whether task requires human approval before starting' },
+    approved_at: { type: 'string', format: 'date-time', nullable: true, description: 'When task was approved' },
+    approved_by: { type: 'string', nullable: true, description: 'Who approved the task' },
     created_at: { type: 'string', format: 'date-time', description: 'Creation timestamp' },
     updated_at: { type: 'string', format: 'date-time', description: 'Last update timestamp' }
   }
@@ -353,7 +357,9 @@ fastify.put('/api/tasks/:id', {
         context: { type: 'string' },
         status: { type: 'string', enum: ['backlog', 'todo', 'in_progress', 'review', 'completed'] },
         tags: { type: 'array', items: { type: 'string' } },
-        agent_id: { type: 'integer' }
+        agent_id: { type: 'integer' },
+        deliverable_type: { type: 'string', enum: ['document', 'spec', 'code', 'review', 'design', 'other'], description: 'Type of deliverable' },
+        deliverable_content: { type: 'string', description: 'Deliverable content (URL, text, etc.)' }
       }
     },
     response: {
@@ -363,7 +369,26 @@ fastify.put('/api/tasks/:id', {
   }
 }, async (request, reply) => {
   const { id } = request.params;
-  const { title, description, context, status, tags, agent_id } = request.body;
+  const { title, description, context, status, tags, agent_id, deliverable_type, deliverable_content } = request.body;
+
+  // Validation: task cannot move to "review" without a deliverable
+  if (status === 'review') {
+    // Check if deliverable is being set in this request OR already exists on the task
+    const hasDeliverableInRequest = deliverable_type && deliverable_content;
+    if (!hasDeliverableInRequest) {
+      // Check existing task for deliverable
+      const { rows: existing } = await dbAdapter.query(
+        `SELECT deliverable_type, deliverable_content FROM tasks WHERE id = ${param(1)}`,
+        [id]
+      );
+      if (existing.length > 0) {
+        const task = existing[0];
+        if (!task.deliverable_type || !task.deliverable_content) {
+          return reply.status(400).send({ error: 'Task cannot move to review without a deliverable. Please add a deliverable_type and deliverable_content.' });
+        }
+      }
+    }
+  }
 
   const tagsValue = tags !== undefined && dbAdapter.isSQLite() ? JSON.stringify(tags) : tags;
   const nowFn = dbAdapter.isSQLite() ? "datetime('now')" : 'NOW()';
@@ -376,10 +401,12 @@ fastify.put('/api/tasks/:id', {
          status = COALESCE(${param(4)}, status),
          tags = COALESCE(${param(5)}, tags),
          agent_id = COALESCE(${param(6)}, agent_id),
+         deliverable_type = COALESCE(${param(7)}, deliverable_type),
+         deliverable_content = COALESCE(${param(8)}, deliverable_content),
          updated_at = ${nowFn}
-     WHERE id = ${param(7)}
+     WHERE id = ${param(9)}
      RETURNING *`,
-    [title, description, context, status, tagsValue, agent_id, id]
+    [title, description, context, status, tagsValue, agent_id, deliverable_type, deliverable_content, id]
   );
 
   if (rows.length === 0) {
@@ -797,7 +824,25 @@ fastify.get('/api/agents', {
   }
 }, async (request, reply) => {
   const { rows } = await dbAdapter.query('SELECT * FROM agents ORDER BY created_at');
-  return { success: true, data: rows };
+  
+  // Compute liveness based on last_heartbeat (30min threshold)
+  const now = Date.now();
+  const THIRTY_MIN = 30 * 60 * 1000;
+  const data = rows.map(agent => {
+    let liveness = 'offline';
+    if (agent.last_heartbeat) {
+      const hbTime = new Date(agent.last_heartbeat).getTime();
+      const elapsed = now - hbTime;
+      if (elapsed < THIRTY_MIN) {
+        liveness = 'online';
+      } else if (elapsed < THIRTY_MIN * 2) {
+        liveness = 'stale';
+      }
+    }
+    return { ...agent, liveness };
+  });
+  
+  return { success: true, data };
 });
 
 /**
@@ -1118,6 +1163,89 @@ fastify.delete('/api/agents/:id', {
 
   broadcast('agent-deleted', { id: parseInt(id) });
   return { success: true, data: { deleted: rows[0] } };
+});
+
+// ============ AGENT HEARTBEAT & NEXT-TASK ============
+
+/**
+ * PUT /api/agents/:id/heartbeat - Update agent's last_heartbeat timestamp.
+ */
+fastify.put('/api/agents/:id/heartbeat', {
+  ...withAuth,
+  schema: {
+    description: 'Update agent heartbeat timestamp',
+    tags: ['Agents'],
+    security: [{ apiKey: [] }],
+    params: {
+      type: 'object',
+      properties: { id: { type: 'integer' } }
+    },
+    response: {
+      200: {
+        type: 'object',
+        properties: {
+          success: { type: 'boolean' },
+          last_heartbeat: { type: 'string', format: 'date-time' }
+        }
+      },
+      404: { $ref: 'Error#' }
+    }
+  }
+}, async (request, reply) => {
+  const { id } = request.params;
+  const nowFn = dbAdapter.isSQLite() ? "datetime('now')" : 'NOW()';
+
+  const { rows } = await dbAdapter.query(
+    `UPDATE agents SET last_heartbeat = ${nowFn} WHERE id = ${param(1)} RETURNING id, last_heartbeat`,
+    [id]
+  );
+
+  if (rows.length === 0) {
+    return reply.status(404).send({ success: false, error: 'Agent not found' });
+  }
+
+  broadcast('agent-updated', rows[0]);
+  return { success: true, last_heartbeat: rows[0].last_heartbeat };
+});
+
+/**
+ * GET /api/agents/:id/next-task - Get highest-priority todo task for an agent.
+ */
+fastify.get('/api/agents/:id/next-task', {
+  schema: {
+    description: 'Get the highest-priority todo task assigned to this agent',
+    tags: ['Agents'],
+    params: {
+      type: 'object',
+      properties: { id: { type: 'integer' } }
+    },
+    response: {
+      200: {
+        type: 'object',
+        properties: {
+          success: { type: 'boolean' },
+          task: { $ref: 'Task#' }
+        }
+      },
+      404: { $ref: 'Error#' }
+    }
+  }
+}, async (request, reply) => {
+  const { id } = request.params;
+
+  const { rows } = await dbAdapter.query(
+    `SELECT * FROM tasks 
+     WHERE agent_id = ${param(1)} AND status = 'todo' 
+     ORDER BY created_at ASC 
+     LIMIT 1`,
+    [id]
+  );
+
+  if (rows.length === 0) {
+    return { success: true, task: null };
+  }
+
+  return { success: true, task: rows[0] };
 });
 
 // ============ MESSAGES API ============
@@ -1954,8 +2082,12 @@ const start = async () => {
     fastify.log.info('V4 migration (task_comments) applied');
     await v5Migration.up();
     fastify.log.info('V5 migration (task context & attachments) applied');
-    await v6Migration.up();
+    await v6HeartbeatMigration.up();
     fastify.log.info('V6 migration (agent heartbeat) applied');
+    await v6ApprovalMigration.up();
+    fastify.log.info('V6 migration (approval gates) applied');
+    await v6AssigneesMigration.up();
+    fastify.log.info('V6 migration (task_assignees) applied');
     await seedAgentsFromConfig();
     
     await fastify.listen({ port: PORT, host: '0.0.0.0' });

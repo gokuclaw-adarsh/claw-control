@@ -41,6 +41,8 @@ export function transformTask(apiTask: Record<string, unknown>): Task {
           ? apiTask.attachments.map(String) 
           : [String(apiTask.attachments)])
       : undefined,
+    deliverableType: apiTask.deliverable_type ? String(apiTask.deliverable_type) : undefined,
+    deliverableContent: apiTask.deliverable_content ? String(apiTask.deliverable_content) : undefined,
     status: (apiTask.status as TaskStatus) || 'backlog',
     agentId: apiTask.agent_id ? String(apiTask.agent_id) : undefined,
     createdAt: String(apiTask.created_at || new Date().toISOString()),
@@ -181,6 +183,32 @@ export async function updateTaskContext(taskId: string, context: string): Promis
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ context }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return transformTask(data);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Updates a task's deliverable fields.
+ * @param taskId - The task ID to update
+ * @param deliverableType - Type of deliverable
+ * @param deliverableContent - Deliverable content
+ * @returns Promise resolving to updated Task or null
+ */
+export async function updateTaskDeliverable(
+  taskId: string,
+  deliverableType: string,
+  deliverableContent: string
+): Promise<Task | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/tasks/${taskId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deliverable_type: deliverableType, deliverable_content: deliverableContent }),
     });
     if (!res.ok) return null;
     const data = await res.json();

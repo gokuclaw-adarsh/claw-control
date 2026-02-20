@@ -52,6 +52,31 @@ function StatusIndicator({ status }: { status: AgentStatus }) {
   );
 }
 
+const livenessConfig: Record<string, { color: string; label: string }> = {
+  online: { color: 'bg-green-500', label: 'Online' },
+  stale: { color: 'bg-yellow-500', label: 'Stale' },
+  offline: { color: 'bg-red-500', label: 'Offline' },
+};
+
+function LivenessIndicator({ liveness }: { liveness?: string }) {
+  const config = livenessConfig[liveness || 'offline'] || livenessConfig.offline;
+  return (
+    <span className="relative flex h-2.5 w-2.5" title={config.label}>
+      <span className={`${config.color} absolute inline-flex h-full w-full rounded-full ${liveness === 'online' ? 'animate-ping opacity-75' : ''}`} />
+      <span className={`${config.color} relative inline-flex rounded-full h-2.5 w-2.5`} />
+    </span>
+  );
+}
+
+function formatLastSeen(ts?: string): string {
+  if (!ts) return 'Never';
+  const diff = Date.now() - new Date(ts).getTime();
+  if (diff < 60000) return 'Just now';
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+  return `${Math.floor(diff / 86400000)}d ago`;
+}
+
 function AgentCard({ agent, onClick }: { agent: Agent; onClick: () => void }) {
   return (
     <div
@@ -74,9 +99,12 @@ function AgentCard({ agent, onClick }: { agent: Agent; onClick: () => void }) {
           border border-white/10
           flex items-center justify-center flex-shrink-0 
           group-hover:border-accent-primary/30 group-hover:shadow-glow-sm
-          transition-all duration-200 overflow-hidden
+          transition-all duration-200 overflow-hidden relative
         `}>
           <AgentAvatar name={agent.name} size={48} enableBlink={agent.status === 'working'} />
+          <div className="absolute -top-0.5 -right-0.5">
+            <LivenessIndicator liveness={agent.liveness} />
+          </div>
         </div>
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-white text-sm truncate group-hover:text-accent-primary transition-colors">
@@ -87,8 +115,11 @@ function AgentCard({ agent, onClick }: { agent: Agent; onClick: () => void }) {
               {agent.description}
             </p>
           )}
-          <div className="mt-2.5">
+          <div className="mt-2.5 flex items-center gap-3">
             <StatusIndicator status={agent.status} />
+            <span className="text-[10px] text-accent-muted/60">
+              {agent.last_heartbeat ? `Last seen ${formatLastSeen(agent.last_heartbeat)}` : ''}
+            </span>
           </div>
         </div>
       </div>
