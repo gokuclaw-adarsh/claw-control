@@ -15,6 +15,8 @@ export interface Task {
   id: string;
   title: string;
   description?: string;
+  context?: string;
+  attachments?: string[];
   status: TaskStatus;
   agentId?: string;
   createdAt?: string;

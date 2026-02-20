@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { X, Bot, Clock, Calendar, Tag, Activity, MessageSquare, Send, User } from 'lucide-react';
+import { X, Bot, Clock, Calendar, Tag, Activity, MessageSquare, Send, User, Paperclip, FileText } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from './ui/dialog';
 import type { Task, TaskStatus, Agent, Comment } from '../types';
-import { fetchTaskComments, createTaskComment } from '../hooks/useApi';
+import { fetchTaskComments, createTaskComment, updateTaskContext } from '../hooks/useApi';
 
 // Status configuration with labels and colors
 const statusConfig: Record<TaskStatus, { 
@@ -94,6 +94,15 @@ export function TaskDetailModal({ task, agents, open, onOpenChange }: TaskDetail
   const [loadingComments, setLoadingComments] = useState(false);
   const [newComment, setNewComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [context, setContext] = useState(task?.context || '');
+  const [savingContext, setSavingContext] = useState(false);
+
+  // Sync context when task changes
+  useEffect(() => {
+    if (task) {
+      setContext(task.context || '');
+    }
+  }, [task]);
 
   // Fetch comments when task changes and modal is open
   useEffect(() => {
@@ -124,7 +133,16 @@ export function TaskDetailModal({ task, agents, open, onOpenChange }: TaskDetail
     }
   };
 
+  const handleSaveContext = async () => {
+    if (!task || savingContext) return;
+    setSavingContext(true);
+    await updateTaskContext(task.id, context);
+    setSavingContext(false);
+  };
+
   if (!task) return null;
+
+  const attachments = task.attachments || [];
 
   const agent = agents.find(a => a.id === task.agentId);
   const statusStyle = statusConfig[task.status];
@@ -211,6 +229,73 @@ export function TaskDetailModal({ task, agents, open, onOpenChange }: TaskDetail
               </p>
             )}
           </div>
+
+          {/* Context / Notes */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-accent-secondary flex items-center gap-2">
+              <FileText className="w-4 h-4" />
+              Context / Notes
+            </h3>
+            <div className="relative">
+              <textarea
+                value={context}
+                onChange={(e) => setContext(e.target.value)}
+                onBlur={handleSaveContext}
+                placeholder="Add context, notes, or additional details for this task..."
+                className="
+                  w-full bg-white/[0.02] border border-white/10 rounded-xl
+                  px-4 py-3 text-sm text-white
+                  placeholder:text-accent-muted
+                  focus:outline-none focus:ring-2 focus:ring-accent-primary/50
+                  focus:border-accent-primary/50
+                  resize-y
+                  min-h-[100px]
+                "
+                disabled={savingContext}
+              />
+              {savingContext && (
+                <div className="absolute top-3 right-3">
+                  <div className="w-4 h-4 border-2 border-accent-primary border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
+              {context !== (task.context || '') && !savingContext && (
+                <p className="text-xs text-accent-muted mt-1">Changes save on blur</p>
+              )}
+            </div>
+          </div>
+
+          {/* Attachments */}
+          {attachments.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-accent-secondary flex items-center gap-2">
+                <Paperclip className="w-4 h-4" />
+                Attachments
+                <span className="text-xs font-normal text-accent-muted">
+                  ({attachments.length})
+                </span>
+              </h3>
+              <div className="space-y-2">
+                {attachments.map((url, index) => (
+                  <a
+                    key={index}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="
+                      flex items-center gap-3 px-4 py-3
+                      bg-white/[0.02] rounded-xl border border-white/5
+                      text-sm text-accent-primary hover:text-white
+                      hover:bg-white/[0.04] transition-all duration-200
+                      truncate
+                    "
+                  >
+                    <Paperclip className="w-4 h-4 flex-shrink-0" />
+                    <span className="truncate">{url}</span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Metadata Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -14,6 +14,7 @@ const fs = require('fs');
 const path = require('path');
 const dbAdapter = require('./db-adapter');
 const v3Migration = require('./migrations/v3_mentions_profiles');
+const v5Migration = require('./migrations/v5_task_context');
 
 /** PostgreSQL schema migration SQL */
 const pgMigration = `
@@ -117,6 +118,9 @@ async function migrate() {
     // Run incremental migrations
     await v3Migration.up();
     console.log('V3 migration (mentions & profiles) applied.');
+    
+    await v5Migration.up();
+    console.log('V5 migration (task context & attachments) applied.');
 
     const { rows } = await dbAdapter.query('SELECT COUNT(*) as count FROM agents');
     const count = parseInt(rows[0].count);

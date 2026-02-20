@@ -18,6 +18,9 @@ const { dispatchWebhook, reloadWebhooks, getWebhooks, SUPPORTED_EVENTS } = requi
 const { withAuth, isAuthEnabled } = require('./auth');
 const v3Migration = require('./migrations/v3_mentions_profiles');
 const v4Migration = require('./migrations/v4_task_comments');
+const v5Migration = require('./migrations/v5_task_context');
+const v6Migration = require('./migrations/v6_agent_heartbeat');
+const v6Migration = require('./migrations/v6_approval_gates');
 const packageJson = require('../package.json');
 
 /**
@@ -83,6 +86,8 @@ fastify.addSchema({
     id: { type: 'integer', description: 'Unique task identifier' },
     title: { type: 'string', description: 'Task title' },
     description: { type: 'string', nullable: true, description: 'Task description' },
+    context: { type: 'string', nullable: true, description: 'Task context/notes' },
+    attachments: { type: 'array', items: { type: 'string' }, description: 'Task attachment URLs' },
     status: { 
       type: 'string', 
       enum: ['backlog', 'todo', 'in_progress', 'review', 'completed'],
@@ -345,6 +350,7 @@ fastify.put('/api/tasks/:id', {
       properties: {
         title: { type: 'string' },
         description: { type: 'string' },
+        context: { type: 'string' },
         status: { type: 'string', enum: ['backlog', 'todo', 'in_progress', 'review', 'completed'] },
         tags: { type: 'array', items: { type: 'string' } },
         agent_id: { type: 'integer' }
@@ -357,7 +363,7 @@ fastify.put('/api/tasks/:id', {
   }
 }, async (request, reply) => {
   const { id } = request.params;
-  const { title, description, status, tags, agent_id } = request.body;
+  const { title, description, context, status, tags, agent_id } = request.body;
 
   const tagsValue = tags !== undefined && dbAdapter.isSQLite() ? JSON.stringify(tags) : tags;
   const nowFn = dbAdapter.isSQLite() ? "datetime('now')" : 'NOW()';
@@ -366,13 +372,14 @@ fastify.put('/api/tasks/:id', {
     `UPDATE tasks 
      SET title = COALESCE(${param(1)}, title),
          description = COALESCE(${param(2)}, description),
-         status = COALESCE(${param(3)}, status),
-         tags = COALESCE(${param(4)}, tags),
-         agent_id = COALESCE(${param(5)}, agent_id),
+         context = COALESCE(${param(3)}, context),
+         status = COALESCE(${param(4)}, status),
+         tags = COALESCE(${param(5)}, tags),
+         agent_id = COALESCE(${param(6)}, agent_id),
          updated_at = ${nowFn}
-     WHERE id = ${param(6)}
+     WHERE id = ${param(7)}
      RETURNING *`,
-    [title, description, status, tagsValue, agent_id, id]
+    [title, description, context, status, tagsValue, agent_id, id]
   );
 
   if (rows.length === 0) {
@@ -453,6 +460,8 @@ fastify.get('/api/tasks/:id', {
           id: { type: 'integer' },
           title: { type: 'string' },
           description: { type: 'string', nullable: true },
+          context: { type: 'string', nullable: true },
+          attachments: { type: 'array', items: { type: 'string' } },
           status: { type: 'string' },
           agent_id: { type: 'integer', nullable: true },
           tags: { type: 'array', items: { type: 'string' } },
@@ -1943,6 +1952,10 @@ const start = async () => {
     fastify.log.info('V3 migration (mentions & profiles) applied');
     await v4Migration.up();
     fastify.log.info('V4 migration (task_comments) applied');
+    await v5Migration.up();
+    fastify.log.info('V5 migration (task context & attachments) applied');
+    await v6Migration.up();
+    fastify.log.info('V6 migration (agent heartbeat) applied');
     await seedAgentsFromConfig();
     
     await fastify.listen({ port: PORT, host: '0.0.0.0' });

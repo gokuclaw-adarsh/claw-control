@@ -35,6 +35,12 @@ export function transformTask(apiTask: Record<string, unknown>): Task {
     id: String(apiTask.id),
     title: String(apiTask.title || ''),
     description: String(apiTask.description || ''),
+    context: apiTask.context ? String(apiTask.context) : undefined,
+    attachments: apiTask.attachments 
+      ? (Array.isArray(apiTask.attachments) 
+          ? apiTask.attachments.map(String) 
+          : [String(apiTask.attachments)])
+      : undefined,
     status: (apiTask.status as TaskStatus) || 'backlog',
     agentId: apiTask.agent_id ? String(apiTask.agent_id) : undefined,
     createdAt: String(apiTask.created_at || new Date().toISOString()),
@@ -158,6 +164,27 @@ export async function createTaskComment(
     if (!res.ok) return null;
     const data = await res.json();
     return transformComment(data);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Updates a task's context field.
+ * @param taskId - The task ID to update
+ * @param context - New context value
+ * @returns Promise resolving to updated Task or null
+ */
+export async function updateTaskContext(taskId: string, context: string): Promise<Task | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/tasks/${taskId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ context }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return transformTask(data);
   } catch {
     return null;
   }
