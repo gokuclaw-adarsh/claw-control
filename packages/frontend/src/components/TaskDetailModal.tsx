@@ -114,6 +114,9 @@ export function TaskDetailModal({ task, agents, open, onOpenChange }: TaskDetail
       setContext(task.context || '');
       setDeliverableType(task.deliverableType || '');
       setDeliverableContent(task.deliverableContent || '');
+      setRequiresApproval(task.requires_approval || false);
+      setApprovedAt(task.approved_at);
+      setApprovedBy(task.approved_by);
     }
   }, [task]);
 
@@ -164,9 +167,56 @@ export function TaskDetailModal({ task, agents, open, onOpenChange }: TaskDetail
     setSavingDeliverable(false);
   };
 
+  const handleAddAssignee = async (agentId: number) => {
+    if (!task) return;
+    const assignee = await addTaskAssignee(task.id, agentId);
+    if (assignee) {
+      // Refresh full list to get agent details
+      const updated = await fetchTaskAssignees(task.id);
+      setAssignees(updated);
+    }
+    setShowAddAssignee(false);
+  };
+
+  const handleRemoveAssignee = async (agentId: string) => {
+    if (!task) return;
+    const ok = await removeTaskAssignee(task.id, agentId);
+    if (ok) {
+      setAssignees(prev => prev.filter(a => a.agent_id !== agentId));
+    }
+  };
+
+  const handleToggleApproval = async () => {
+    if (!task) return;
+    const newValue = !requiresApproval;
+    setRequiresApproval(newValue);
+    // If turning off approval, clear approval state
+    if (!newValue) {
+      setApprovedAt(undefined);
+      setApprovedBy(undefined);
+    }
+    await updateTaskApproval(task.id, newValue);
+  };
+
+  const handleApprove = async () => {
+    if (!task || approvingTask) return;
+    setApprovingTask(true);
+    const approverName = prompt('Enter your name to approve this task:');
+    if (approverName) {
+      const updated = await approveTask(task.id, approverName);
+      if (updated) {
+        setApprovedAt(updated.approved_at);
+        setApprovedBy(updated.approved_by);
+      }
+    }
+    setApprovingTask(false);
+  };
+
   if (!task) return null;
 
   const attachments = task.attachments || [];
+  const assignedAgentIds = new Set(assignees.map(a => a.agent_id));
+  const availableAgents = agents.filter(a => !assignedAgentIds.has(a.id));
 
   const agent = agents.find(a => a.id === task.agentId);
   const statusStyle = statusConfig[task.status];
@@ -392,6 +442,65 @@ export function TaskDetailModal({ task, agents, open, onOpenChange }: TaskDetail
             </div>
           )}
 
+          {/* Approval Gate */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-accent-secondary flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4" />
+              Approval Gate
+            </h3>
+            <div className="bg-white/[0.02] rounded-xl p-4 border border-white/5 space-y-3">
+              {/* Toggle */}
+              <label className="flex items-center justify-between cursor-pointer">
+                <span className="text-sm text-text-secondary">Requires human approval</span>
+                <button
+                  onClick={handleToggleApproval}
+                  className={`
+                    relative w-11 h-6 rounded-full transition-colors duration-200
+                    ${requiresApproval ? 'bg-accent-primary' : 'bg-white/10'}
+                  `}
+                >
+                  <span className={`
+                    absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform duration-200
+                    ${requiresApproval ? 'translate-x-5' : 'translate-x-0'}
+                  `} />
+                </button>
+              </label>
+
+              {/* Approval Status */}
+              {requiresApproval && (
+                <div className="pt-2 border-t border-white/5">
+                  {approvedAt ? (
+                    <div className="flex items-center gap-2 text-sm">
+                      <ShieldCheck className="w-4 h-4 text-cyber-green" />
+                      <span className="text-cyber-green font-medium">Approved</span>
+                      <span className="text-accent-muted">by {approvedBy}</span>
+                      <span className="text-accent-muted text-xs">({formatDate(approvedAt)})</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-sm">
+                        <ShieldAlert className="w-4 h-4 text-amber-400" />
+                        <span className="text-amber-400 font-medium">Awaiting Approval</span>
+                      </div>
+                      <button
+                        onClick={handleApprove}
+                        disabled={approvingTask}
+                        className="
+                          px-3 py-1.5 rounded-lg text-xs font-semibold
+                          bg-cyber-green/20 text-cyber-green border border-cyber-green/30
+                          hover:bg-cyber-green/30 transition-all duration-200
+                          disabled:opacity-50
+                        "
+                      >
+                        {approvingTask ? 'Approving...' : 'Approve'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Metadata Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Assigned Agent */}
@@ -487,6 +596,95 @@ export function TaskDetailModal({ task, agents, open, onOpenChange }: TaskDetail
                 <p className="text-xs text-accent-muted">{getRelativeTime(task.updatedAt)}</p>
               </div>
             </div>
+          </div>
+
+          {/* Assignees Section */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-accent-secondary flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              Assignees
+              <span className="text-xs font-normal text-accent-muted">
+                ({assignees.length})
+              </span>
+            </h3>
+            
+            {loadingAssignees ? (
+              <div className="text-center py-4">
+                <div className="inline-block w-5 h-5 border-2 border-accent-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {assignees.map((assignee) => (
+                  <div
+                    key={assignee.id}
+                    className="flex items-center justify-between bg-white/[0.02] rounded-xl px-4 py-3 border border-white/5"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-accent-secondary/20 to-accent-tertiary/10 border border-white/10 flex items-center justify-center overflow-hidden">
+                        {assignee.agent_avatar ? (
+                          <img src={assignee.agent_avatar} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <AgentAvatar name={assignee.agent_name || 'Agent'} size={32} enableBlink={false} />
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-white">{assignee.agent_name || `Agent #${assignee.agent_id}`}</p>
+                        <p className="text-xs text-accent-muted capitalize">{assignee.role}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleRemoveAssignee(assignee.agent_id)}
+                      className="p-1.5 rounded-lg text-accent-muted hover:text-red-400 hover:bg-red-400/10 transition-all"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+
+                {/* Add assignee */}
+                {showAddAssignee ? (
+                  <div className="bg-white/[0.02] rounded-xl p-3 border border-white/5 space-y-2">
+                    <p className="text-xs text-accent-muted">Select an agent:</p>
+                    <div className="max-h-40 overflow-y-auto space-y-1">
+                      {availableAgents.map((a) => (
+                        <button
+                          key={a.id}
+                          onClick={() => handleAddAssignee(Number(a.id))}
+                          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/5 transition-colors text-left"
+                        >
+                          <div className="w-6 h-6 rounded-md overflow-hidden flex-shrink-0">
+                            {a.avatar ? (
+                              <img src={a.avatar} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <AgentAvatar name={a.name} size={24} enableBlink={false} />
+                            )}
+                          </div>
+                          <span className="text-sm text-white">{a.name}</span>
+                          <span className="text-xs text-accent-muted ml-auto">{a.role}</span>
+                        </button>
+                      ))}
+                      {availableAgents.length === 0 && (
+                        <p className="text-xs text-accent-muted text-center py-2">All agents assigned</p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => setShowAddAssignee(false)}
+                      className="text-xs text-accent-muted hover:text-white transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowAddAssignee(true)}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-white/10 text-accent-muted hover:text-white hover:border-white/20 transition-all w-full"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span className="text-sm">Add assignee</span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Comments Section */}

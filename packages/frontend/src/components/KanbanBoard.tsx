@@ -131,6 +131,13 @@ function TaskCard({ task, agents, isDragging, onClick }: TaskCardProps) {
         <GripVertical className="w-4 h-4 text-accent-muted cursor-grab active:cursor-grabbing" />
       </div>
       
+      {/* Awaiting Approval Badge */}
+      {task.requires_approval && !task.approved_at && (
+        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-amber-400/10 text-amber-400 border border-amber-400/20 mb-1 w-fit">
+          ⏳ Awaiting Approval
+        </span>
+      )}
+      
       {/* Title */}
       <h4 className="text-sm font-semibold text-white pr-6 leading-snug line-clamp-2">
         {task.title}
