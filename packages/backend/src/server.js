@@ -752,7 +752,6 @@ fastify.get('/api/tasks/:id/assignees', {
             role: { type: 'string' },
             assigned_at: { type: 'string' },
             agent_name: { type: 'string', nullable: true },
-            agent_avatar: { type: 'string', nullable: true },
             agent_status: { type: 'string', nullable: true }
           }
         }
@@ -762,7 +761,7 @@ fastify.get('/api/tasks/:id/assignees', {
 }, async (request, reply) => {
   const { id } = request.params;
   const { rows } = await dbAdapter.query(
-    `SELECT ta.*, a.name as agent_name, a.avatar as agent_avatar, a.status as agent_status
+    `SELECT ta.*, a.name as agent_name, a.status as agent_status
      FROM task_assignees ta
      LEFT JOIN agents a ON ta.agent_id = a.id
      WHERE ta.task_id = ${param(1)}
