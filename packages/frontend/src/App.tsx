@@ -4,7 +4,8 @@ import { Wifi, WifiOff, Bot, LayoutGrid, MessageSquare } from 'lucide-react';
 import { AgentsList } from './components/AgentsList';
 import { KanbanBoard } from './components/KanbanBoard';
 import { AgentChat } from './components/AgentChat';
-import { useAgents, useTasks, useMessages, useSSE, transformAgent, transformTask } from './hooks/useApi';
+import { OperationsObservabilityPanel } from './components/OperationsObservabilityPanel';
+import { useAgents, useTasks, useMessages, useSSE, useOpsObservability, transformAgent, transformTask } from './hooks/useApi';
 import type { Agent, Task, Message, TaskStatus } from './types';
 
 type MobileView = 'agents' | 'board' | 'chat';
@@ -107,6 +108,7 @@ function Dashboard() {
   const { agents, setAgents, loading: agentsLoading } = useAgents();
   const { kanban, loading: tasksLoading, moveTask, setTasks, loadMoreCompleted, completedLoadingMore, completedHasMore } = useTasks();
   const { messages, loading: messagesLoading, addMessage, loadMore: loadMoreMessages, loadingMore: messagesLoadingMore, hasMore: messagesHasMore } = useMessages();
+  const { data: opsData, loading: opsLoading } = useOpsObservability();
 
   // SSE handlers
   const handleAgentUpdate = useCallback((agent: Agent, _action?: 'created' | 'updated') => {
@@ -170,17 +172,20 @@ function Dashboard() {
           <AgentsList agents={agents} loading={agentsLoading} />
         </aside>
 
-        {/* Main Area - Kanban Board */}
-        <section className="flex-1 overflow-hidden bg-claw-bg">
-          <KanbanBoard 
-            kanban={kanban} 
-            agents={agents}
-            loading={tasksLoading}
-            onMoveTask={handleMoveTask}
-            loadMoreCompleted={loadMoreCompleted}
-            completedLoadingMore={completedLoadingMore}
-            completedHasMore={completedHasMore}
-          />
+        {/* Main Area - Operations + Kanban Board */}
+        <section className="flex-1 overflow-hidden bg-claw-bg flex flex-col">
+          <OperationsObservabilityPanel data={opsData} loading={opsLoading} />
+          <div className="flex-1 overflow-hidden">
+            <KanbanBoard 
+              kanban={kanban} 
+              agents={agents}
+              loading={tasksLoading}
+              onMoveTask={handleMoveTask}
+              loadMoreCompleted={loadMoreCompleted}
+              completedLoadingMore={completedLoadingMore}
+              completedHasMore={completedHasMore}
+            />
+          </div>
         </section>
 
         {/* Right Panel - Agent Chat (Collapsible) */}
@@ -206,15 +211,20 @@ function Dashboard() {
         </div>
 
         <div className={`h-full overflow-hidden ${mobileView === 'board' ? 'block' : 'hidden'}`}>
-          <KanbanBoard 
-            kanban={kanban} 
-            agents={agents}
-            loading={tasksLoading}
-            onMoveTask={handleMoveTask}
-            loadMoreCompleted={loadMoreCompleted}
-            completedLoadingMore={completedLoadingMore}
-            completedHasMore={completedHasMore}
-          />
+          <div className="h-full flex flex-col overflow-hidden">
+            <OperationsObservabilityPanel data={opsData} loading={opsLoading} />
+            <div className="flex-1 overflow-hidden">
+              <KanbanBoard 
+                kanban={kanban} 
+                agents={agents}
+                loading={tasksLoading}
+                onMoveTask={handleMoveTask}
+                loadMoreCompleted={loadMoreCompleted}
+                completedLoadingMore={completedLoadingMore}
+                completedHasMore={completedHasMore}
+              />
+            </div>
+          </div>
         </div>
 
         <div className={`h-full overflow-hidden ${mobileView === 'chat' ? 'block' : 'hidden'}`}>

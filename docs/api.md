@@ -679,6 +679,56 @@ POST /api/webhooks/reload
 }
 ```
 
+### Orchestrator Webhook Intake
+
+```http
+POST /api/orchestrator/webhook/intake
+X-Dedupe-Key: optional-dedupe-key
+```
+
+**Request Body (example):**
+
+```json
+{
+  "eventType": "heartbeat.patrol",
+  "payload": {
+    "source": "scheduler"
+  }
+}
+```
+
+**Behavior:**
+- Idempotency lock + dedupe handling
+- Retry with exponential backoff
+- Dead-letter logging on terminal failure
+- Triggers full patrol scan (all tasks)
+
+**Response (example):**
+
+```json
+{
+  "success": true,
+  "dedupeKey": "optional-dedupe-key",
+  "duplicate": false,
+  "result": {
+    "trigger": "webhook:heartbeat.patrol",
+    "scanned": 24,
+    "backlog_prompted": 5,
+    "todo_claimed_started": 3,
+    "stale_remediated": 2,
+    "deferred": 0
+  }
+}
+```
+
+### Run Patrol Manually
+
+```http
+POST /api/orchestrator/patrol/run
+```
+
+Runs the same 15-minute patrol logic immediately.
+
 ---
 
 ## Health Check

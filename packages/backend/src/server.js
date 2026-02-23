@@ -15,6 +15,7 @@ const swaggerUi = require('@fastify/swagger-ui');
 const dbAdapter = require('./db-adapter');
 const { loadAgentsConfig, getConfigPath, CONFIG_PATHS } = require('./config-loader');
 const { dispatchWebhook, reloadWebhooks, getWebhooks, SUPPORTED_EVENTS } = require('./webhook');
+const { createOrchestratorService } = require('./orchestrator');
 const { withAuth, isAuthEnabled } = require('./auth');
 const v3Migration = require('./migrations/v3_mentions_profiles');
 const v4Migration = require('./migrations/v4_task_comments');
@@ -34,6 +35,42 @@ const param = (index) => dbAdapter.isSQLite() ? '?' : `$${index}`;
 
 /** @type {import('http').ServerResponse[]} Active SSE client connections */
 let clients = [];
+
+const OPS_EVENT_LOG_LIMIT = 200;
+const OPS_DECISIONS_LIMIT = 100;
+
+/**
+ * In-memory operational observability state (safe defaults; can be updated via API).
+ */
+const opsState = {
+  lockState: 'unknown',
+  retryCount: 0,
+  spawnStatus: 'unknown',
+  lastUpdated: null,
+  lastEventAt: null,
+  events: [],
+  heartbeatPatrol: {
+    lastRunAt: null,
+    tasksScannedCount: 0,
+    backlogPendingCount: 0,
+    todoAutoPickedCount: 0,
+    staleTaskAlerts: 0,
+    decisions: []
+  }
+};
+
+function recordOpsEvent(event, data) {
+  const eventRecord = {
+    event,
+    timestamp: new Date().toISOString(),
+    data
+  };
+  opsState.events.push(eventRecord);
+  if (opsState.events.length > OPS_EVENT_LOG_LIMIT) {
+    opsState.events = opsState.events.slice(-OPS_EVENT_LOG_LIMIT);
+  }
+  opsState.lastEventAt = eventRecord.timestamp;
+}
 
 fastify.register(cors, { origin: '*' });
 
@@ -174,9 +211,18 @@ fastify.addSchema({
  * @param {object} data - Data payload to send
  */
 function broadcast(event, data) {
+  recordOpsEvent(event, data);
   const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
   clients.forEach(res => res.write(payload));
 }
+
+const orchestrator = createOrchestratorService({
+  dbAdapter,
+  fastify,
+  param,
+  broadcast,
+  dispatchWebhook
+});
 
 // Register all API routes as a plugin for Swagger to detect them
 fastify.register(async function routes(fastify) {
@@ -407,6 +453,40 @@ fastify.put('/api/tasks/:id', {
         if (!task.deliverable_type || !task.deliverable_content) {
           return reply.status(400).send({ error: 'Task cannot move to review without a deliverable. Please add a deliverable_type and deliverable_content.' });
         }
+      }
+    }
+  }
+
+  // Review gate: only Goku/coordinator can move review -> completed,
+  // and only when subtasks are done + deliverable is present.
+  if (status === 'completed') {
+    const { rows: existingRows } = await dbAdapter.query(
+      `SELECT * FROM tasks WHERE id = ${param(1)}`,
+      [id]
+    );
+
+    if (existingRows.length === 0) {
+      return reply.status(404).send({ error: 'Task not found' });
+    }
+
+    const existingTask = existingRows[0];
+    if (existingTask.status === 'review') {
+      const gate = await enforceReviewCompletionGate({
+        request,
+        task: existingTask,
+        pendingDeliverableType: deliverable_type,
+        pendingDeliverableContent: deliverable_content
+      });
+
+      if (!gate.ok) {
+        if (gate.bouncedTask) {
+          broadcast('task-updated', gate.bouncedTask);
+          dispatchWebhook('task-updated', gate.bouncedTask);
+        }
+        return reply.status(400).send({
+          error: gate.reason,
+          task: gate.bouncedTask
+        });
       }
     }
   }
@@ -864,6 +944,133 @@ const STATUS_PROGRESSION = {
   'review': 'completed',
   'completed': null
 };
+
+function getActorName(request) {
+  const headerCandidates = [
+    request.headers['x-actor-name'],
+    request.headers['x-agent-name'],
+    request.headers['x-user-name'],
+    request.headers['x-requested-by']
+  ];
+
+  const actor = headerCandidates.find(v => typeof v === 'string' && v.trim().length > 0);
+  return actor ? actor.trim() : null;
+}
+
+function isCoordinatorActor(actorName) {
+  if (!actorName) return false;
+  const normalized = actorName.trim().toLowerCase();
+  return normalized === 'goku' || normalized === 'coordinator';
+}
+
+async function bounceTaskToTodo(taskId, reason) {
+  const nowFn = dbAdapter.isSQLite() ? "datetime('now')" : 'NOW()';
+
+  const { rows } = await dbAdapter.query(
+    `UPDATE tasks
+     SET status = 'todo', updated_at = ${nowFn}
+     WHERE id = ${param(1)}
+     RETURNING *`,
+    [taskId]
+  );
+
+  const task = rows[0] || null;
+
+  await dbAdapter.query(
+    `INSERT INTO task_comments (task_id, agent_id, content)
+     VALUES (${param(1)}, ${param(2)}, ${param(3)})`,
+    [taskId, null, reason]
+  );
+
+  return task;
+}
+
+async function enforceReviewCompletionGate({ request, task, pendingDeliverableType, pendingDeliverableContent }) {
+  const actor = getActorName(request);
+  const checks = [];
+
+  if (!isCoordinatorActor(actor)) {
+    checks.push(`Only Goku/coordinator can move review -> completed (actor: ${actor || 'unknown'}).`);
+  }
+
+  const effectiveDeliverableType = pendingDeliverableType ?? task.deliverable_type;
+  const effectiveDeliverableContent = pendingDeliverableContent ?? task.deliverable_content;
+
+  if (!effectiveDeliverableType || !effectiveDeliverableContent) {
+    checks.push('Deliverable is missing (deliverable_type and deliverable_content are required).');
+  }
+
+  const { rows: subtaskStats } = await dbAdapter.query(
+    `SELECT
+      COUNT(*) AS total,
+      SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) AS done
+     FROM subtasks
+     WHERE task_id = ${param(1)}`,
+    [task.id]
+  );
+
+  const totalSubtasks = parseInt(subtaskStats[0]?.total || 0, 10);
+  const doneSubtasks = parseInt(subtaskStats[0]?.done || 0, 10);
+
+  if (totalSubtasks > 0 && doneSubtasks < totalSubtasks) {
+    checks.push(`Subtasks incomplete (${doneSubtasks}/${totalSubtasks} done).`);
+  }
+
+  if (checks.length === 0) {
+    return { ok: true };
+  }
+
+  const reason = `[AUTO-GATE] Review -> completed denied. Task moved back to TODO. Reasons: ${checks.join(' ')}`;
+  const bouncedTask = await bounceTaskToTodo(task.id, reason);
+
+  return { ok: false, bouncedTask, reason };
+}
+
+async function maybeAnnotateStaleReviewTasks(agentId) {
+  const staleHours = parseInt(process.env.REVIEW_STALE_HOURS || '24', 10);
+  const thresholdHours = Number.isNaN(staleHours) ? 24 : staleHours;
+  const now = Date.now();
+  const staleMs = thresholdHours * 60 * 60 * 1000;
+
+  const { rows: reviewTasks } = await dbAdapter.query(
+    `SELECT id, title, updated_at
+     FROM tasks
+     WHERE agent_id = ${param(1)} AND status = 'review'`,
+    [agentId]
+  );
+
+  for (const reviewTask of reviewTasks) {
+    const updatedAt = new Date(reviewTask.updated_at).getTime();
+    if (Number.isNaN(updatedAt) || (now - updatedAt) < staleMs) {
+      continue;
+    }
+
+    const { rows: existingComment } = await dbAdapter.query(
+      `SELECT id
+       FROM task_comments
+       WHERE task_id = ${param(1)}
+         AND content LIKE ${param(2)}
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [reviewTask.id, '[AUTO-REMEDIATE] Stale review item detected.%']
+    );
+
+    if (existingComment.length > 0) {
+      continue;
+    }
+
+    const ageHours = Math.floor((now - updatedAt) / (60 * 60 * 1000));
+    await dbAdapter.query(
+      `INSERT INTO task_comments (task_id, agent_id, content)
+       VALUES (${param(1)}, ${param(2)}, ${param(3)})`,
+      [
+        reviewTask.id,
+        null,
+        `[AUTO-REMEDIATE] Stale review item detected. Task has been in review for ${ageHours}h. Remediation: complete pending subtasks, refresh deliverable evidence, and re-request Goku/coordinator finalization.`
+      ]
+    );
+  }
+}
 
 /**
  * POST /api/tasks/:id/progress - Advance task to next status in workflow.
@@ -1571,7 +1778,7 @@ fastify.put('/api/agents/:id/heartbeat', {
  */
 fastify.get('/api/agents/:id/next-task', {
   schema: {
-    description: 'Get the highest-priority todo task assigned to this agent',
+    description: 'Get the highest-priority todo task assigned to this agent (auto-pick patrol only considers todo; review/completed are excluded)',
     tags: ['Agents'],
     params: {
       type: 'object',
@@ -1590,6 +1797,12 @@ fastify.get('/api/agents/:id/next-task', {
   }
 }, async (request, reply) => {
   const { id } = request.params;
+
+  // Heartbeat/autopick alignment:
+  // - auto-pick patrol only returns TODO items
+  // - review/completed are intentionally excluded
+  // - stale review items get remediation comments for explicit follow-up
+  await maybeAnnotateStaleReviewTasks(id);
 
   const { rows } = await dbAdapter.query(
     `SELECT * FROM tasks 
@@ -1882,6 +2095,164 @@ fastify.get('/api/board', {
   });
 
   return { columns };
+});
+
+// ============ OPERATIONS OBSERVABILITY API ============
+
+fastify.get('/api/ops/observability', {
+  schema: {
+    description: 'Retrieve operations observability snapshot: event stream, lock/retry/spawn state, and heartbeat patrol telemetry.',
+    tags: ['Board'],
+    response: {
+      200: {
+        type: 'object',
+        properties: {
+          lockState: { type: 'string' },
+          retryCount: { type: 'integer' },
+          spawnStatus: { type: 'string' },
+          lastUpdated: { type: 'string', nullable: true },
+          lastEventAt: { type: 'string', nullable: true },
+          events: { type: 'array', items: { type: 'object' } },
+          heartbeatPatrol: { type: 'object' }
+        }
+      }
+    }
+  }
+}, async () => {
+  const now = new Date().toISOString();
+  const { rows: statusRows } = await dbAdapter.query(
+    `SELECT status, COUNT(*) as count FROM tasks GROUP BY status`
+  );
+  const byStatus = Object.fromEntries(statusRows.map(r => [r.status, parseInt(r.count, 10)]));
+
+  const { rows: staleRows } = await dbAdapter.query(
+    dbAdapter.isSQLite()
+      ? `SELECT COUNT(*) as count FROM tasks WHERE status IN ('todo', 'in_progress', 'review') AND datetime(updated_at) <= datetime('now', '-24 hours')`
+      : `SELECT COUNT(*) as count FROM tasks WHERE status IN ('todo', 'in_progress', 'review') AND updated_at <= NOW() - INTERVAL '24 hours'`
+  );
+  const derivedStale = parseInt(staleRows?.[0]?.count || 0, 10);
+
+  const { rows: decisionRows } = await dbAdapter.query(
+    `SELECT id, title, status, agent_id, requires_approval, approved_at, updated_at
+     FROM tasks
+     WHERE status IN ('backlog', 'todo', 'in_progress', 'review')
+     ORDER BY updated_at DESC
+     LIMIT 25`
+  );
+  const generatedDecisions = decisionRows.map((task) => {
+    let action = 'skip';
+    let reason = 'No auto-action rule matched.';
+
+    if (task.status === 'backlog') {
+      action = 'skip';
+      reason = 'Backlog item pending prioritization.';
+    } else if (task.status === 'todo' && task.agent_id) {
+      action = 'observe';
+      reason = 'Already assigned; waiting for execution start.';
+    } else if (task.status === 'todo' && task.requires_approval && !task.approved_at) {
+      action = 'skip';
+      reason = 'Requires approval before moving to in_progress.';
+    } else if (task.status === 'todo') {
+      action = 'consider';
+      reason = 'Eligible for auto-pick if capacity is available.';
+    } else if (task.status === 'in_progress' || task.status === 'review') {
+      action = 'monitor';
+      reason = 'Task is active; monitor for staleness and completion.';
+    }
+
+    return {
+      taskId: String(task.id),
+      taskTitle: task.title,
+      taskStatus: task.status,
+      action,
+      reason,
+      decidedAt: now
+    };
+  });
+
+  const existingPatrol = opsState.heartbeatPatrol || {};
+  const existingDecisions = Array.isArray(existingPatrol.decisions) ? existingPatrol.decisions : [];
+
+  return {
+    lockState: opsState.lockState,
+    retryCount: Number(opsState.retryCount || 0),
+    spawnStatus: opsState.spawnStatus,
+    lastUpdated: opsState.lastUpdated,
+    lastEventAt: opsState.lastEventAt,
+    events: opsState.events.slice(-80),
+    heartbeatPatrol: {
+      lastRunAt: existingPatrol.lastRunAt,
+      tasksScannedCount: existingPatrol.lastRunAt ? Number(existingPatrol.tasksScannedCount || 0) : (byStatus.backlog || 0) + (byStatus.todo || 0),
+      backlogPendingCount: byStatus.backlog || Number(existingPatrol.backlogPendingCount || 0),
+      todoAutoPickedCount: Number(existingPatrol.todoAutoPickedCount || 0),
+      staleTaskAlerts: Math.max(derivedStale, Number(existingPatrol.staleTaskAlerts || 0)),
+      decisions: (existingDecisions.length > 0 ? existingDecisions : generatedDecisions).slice(-OPS_DECISIONS_LIMIT)
+    }
+  };
+});
+
+fastify.post('/api/ops/state', {
+  ...withAuth,
+  schema: {
+    description: 'Update orchestrator lock/retry/spawn state for observability panel.',
+    tags: ['Board'],
+    security: [{ apiKey: [] }],
+    body: {
+      type: 'object',
+      properties: {
+        lockState: { type: 'string' },
+        retryCount: { type: 'integer' },
+        spawnStatus: { type: 'string' },
+        note: { type: 'string' }
+      }
+    }
+  }
+}, async (request) => {
+  const { lockState, retryCount, spawnStatus, note } = request.body || {};
+  if (typeof lockState === 'string') opsState.lockState = lockState;
+  if (Number.isInteger(retryCount) && retryCount >= 0) opsState.retryCount = retryCount;
+  if (typeof spawnStatus === 'string') opsState.spawnStatus = spawnStatus;
+  opsState.lastUpdated = new Date().toISOString();
+
+  const payload = { lockState: opsState.lockState, retryCount: opsState.retryCount, spawnStatus: opsState.spawnStatus, note: note || null, at: opsState.lastUpdated };
+  broadcast('ops-observability-updated', payload);
+  return { success: true, ...payload };
+});
+
+fastify.post('/api/ops/heartbeat-patrol', {
+  ...withAuth,
+  schema: {
+    description: 'Update heartbeat patrol telemetry snapshot and per-action decisions.',
+    tags: ['Board'],
+    security: [{ apiKey: [] }],
+    body: {
+      type: 'object',
+      properties: {
+        lastRunAt: { type: 'string' },
+        tasksScannedCount: { type: 'integer' },
+        backlogPendingCount: { type: 'integer' },
+        todoAutoPickedCount: { type: 'integer' },
+        staleTaskAlerts: { type: 'integer' },
+        decisions: { type: 'array', items: { type: 'object' } }
+      }
+    }
+  }
+}, async (request) => {
+  const body = request.body || {};
+  const decisions = Array.isArray(body.decisions) ? body.decisions.slice(-OPS_DECISIONS_LIMIT) : [];
+
+  opsState.heartbeatPatrol = {
+    lastRunAt: body.lastRunAt || new Date().toISOString(),
+    tasksScannedCount: Number(body.tasksScannedCount || 0),
+    backlogPendingCount: Number(body.backlogPendingCount || 0),
+    todoAutoPickedCount: Number(body.todoAutoPickedCount || 0),
+    staleTaskAlerts: Number(body.staleTaskAlerts || 0),
+    decisions
+  };
+  opsState.lastUpdated = new Date().toISOString();
+
+  broadcast('ops-heartbeat-patrol-updated', opsState.heartbeatPatrol);
+  return { success: true, heartbeatPatrol: opsState.heartbeatPatrol };
 });
 
 // ============ SSE STREAM ============
@@ -2277,6 +2648,63 @@ fastify.post('/api/webhooks/reload', {
   };
 });
 
+// ============ ORCHESTRATOR API ============
+
+fastify.post('/api/orchestrator/webhook/intake', {
+  ...withAuth,
+  schema: {
+    description: 'Webhook intake with dedupe, idempotency lock, retry/backoff, and patrol execution',
+    tags: ['Webhooks'],
+    security: [{ apiKey: [] }],
+    headers: {
+      type: 'object',
+      properties: {
+        'x-dedupe-key': { type: 'string' }
+      }
+    },
+    body: {
+      type: 'object',
+      properties: {
+        eventType: { type: 'string' },
+        dedupeKey: { type: 'string' },
+        payload: { type: 'object', additionalProperties: true }
+      },
+      additionalProperties: true
+    },
+    response: {
+      200: {
+        type: 'object',
+        properties: {
+          success: { type: 'boolean' },
+          dedupeKey: { type: 'string' },
+          duplicate: { type: 'boolean' },
+          message: { type: 'string' },
+          result: { type: 'object', additionalProperties: true }
+        }
+      }
+    }
+  }
+}, async (request, reply) => {
+  return orchestrator.handleWebhookIntake({ headers: request.headers, body: request.body || {} });
+});
+
+fastify.post('/api/orchestrator/patrol/run', {
+  ...withAuth,
+  schema: {
+    description: 'Run orchestrator heartbeat patrol immediately (scan all tasks)',
+    tags: ['Tasks'],
+    security: [{ apiKey: [] }],
+    response: {
+      200: {
+        type: 'object',
+        additionalProperties: true
+      }
+    }
+  }
+}, async () => {
+  return orchestrator.runHeartbeatPatrol('manual');
+});
+
 }); // End of routes plugin
 
 // ============ AUTO-SEED ============
@@ -2450,6 +2878,10 @@ const start = async () => {
     await seedAgentsFromConfig();
     
     await fastify.listen({ port: PORT, host: '0.0.0.0' });
+    orchestrator.startHeartbeat();
+    fastify.addHook('onClose', async () => {
+      orchestrator.stopHeartbeat();
+    });
     fastify.log.info(`Server running on port ${PORT}`);
   } catch (err) {
     fastify.log.error(err);

@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import type { Agent, Task, Message, KanbanData, TaskStatus, Comment, TaskAssignee, Subtask } from '../types';
+import type { Agent, Task, Message, KanbanData, TaskStatus, Comment, TaskAssignee, Subtask, OpsObservability } from '../types';
 
 /** 
  * Base URL for API requests.
@@ -666,6 +666,58 @@ export function useMessages() {
  * @param onInit - Handler for initial data load
  * @returns Object with connection status
  */
+export function useOpsObservability() {
+  const [data, setData] = useState<OpsObservability | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchObservability = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/ops/observability`);
+      if (!res.ok) throw new Error('Failed to fetch operations observability');
+      const raw = await res.json();
+      setData({
+        lockState: String(raw.lockState || 'unknown'),
+        retryCount: Number(raw.retryCount || 0),
+        spawnStatus: String(raw.spawnStatus || 'unknown'),
+        lastUpdated: raw.lastUpdated ? String(raw.lastUpdated) : null,
+        lastEventAt: raw.lastEventAt ? String(raw.lastEventAt) : null,
+        events: Array.isArray(raw.events) ? raw.events.map((e: Record<string, unknown>) => ({
+          event: String(e.event || 'unknown-event'),
+          timestamp: String(e.timestamp || new Date().toISOString()),
+          data: e.data,
+        })) : [],
+        heartbeatPatrol: {
+          lastRunAt: raw.heartbeatPatrol?.lastRunAt ? String(raw.heartbeatPatrol.lastRunAt) : null,
+          tasksScannedCount: Number(raw.heartbeatPatrol?.tasksScannedCount || 0),
+          backlogPendingCount: Number(raw.heartbeatPatrol?.backlogPendingCount || 0),
+          todoAutoPickedCount: Number(raw.heartbeatPatrol?.todoAutoPickedCount || 0),
+          staleTaskAlerts: Number(raw.heartbeatPatrol?.staleTaskAlerts || 0),
+          decisions: Array.isArray(raw.heartbeatPatrol?.decisions) ? raw.heartbeatPatrol.decisions.map((d: Record<string, unknown>) => ({
+            taskId: d.taskId ? String(d.taskId) : undefined,
+            taskTitle: d.taskTitle ? String(d.taskTitle) : undefined,
+            taskStatus: d.taskStatus ? String(d.taskStatus) : undefined,
+            action: d.action ? String(d.action) : undefined,
+            reason: d.reason ? String(d.reason) : undefined,
+            decidedAt: d.decidedAt ? String(d.decidedAt) : undefined,
+          })) : [],
+        },
+      });
+    } catch {
+      // keep previous state
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchObservability();
+    const interval = setInterval(fetchObservability, 5000);
+    return () => clearInterval(interval);
+  }, [fetchObservability]);
+
+  return { data, loading, refetch: fetchObservability };
+}
+
 export function useSSE(
   onAgent?: (agent: Agent, action?: 'created' | 'updated') => void,
   onTask?: (task: Task | { id: string }, action?: 'created' | 'updated' | 'deleted') => void,

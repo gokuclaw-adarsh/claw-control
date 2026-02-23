@@ -114,3 +114,37 @@ export interface Comment {
   content: string;
   created_at: string;
 }
+
+export interface OpsEvent {
+  event: string;
+  timestamp: string;
+  data?: unknown;
+}
+
+export interface OpsDecision {
+  taskId?: string;
+  taskTitle?: string;
+  taskStatus?: string;
+  action?: string;
+  reason?: string;
+  decidedAt?: string;
+}
+
+export interface HeartbeatPatrolTelemetry {
+  lastRunAt?: string | null;
+  tasksScannedCount: number;
+  backlogPendingCount: number;
+  todoAutoPickedCount: number;
+  staleTaskAlerts: number;
+  decisions: OpsDecision[];
+}
+
+export interface OpsObservability {
+  lockState: string;
+  retryCount: number;
+  spawnStatus: string;
+  lastUpdated?: string | null;
+  lastEventAt?: string | null;
+  events: OpsEvent[];
+  heartbeatPatrol: HeartbeatPatrolTelemetry;
+}

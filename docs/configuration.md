@@ -242,7 +242,35 @@ API_KEY=your-secret-key      # Enable API key auth for write operations
 # Config Paths (Optional)
 AGENTS_CONFIG_PATH=/custom/path/agents.yaml
 WEBHOOKS_CONFIG_PATH=/custom/path/webhooks.yaml
+
+# Orchestrator (Optional)
+ORCHESTRATOR_ENABLED=true
+ORCHESTRATOR_HEARTBEAT_ENABLED=true
+ORCHESTRATOR_HEARTBEAT_MINUTES=15
+ORCHESTRATOR_STALE_MINUTES=120
+ORCHESTRATOR_BACKLOG_PROMPT_MINUTES=30
+ORCHESTRATOR_MAX_RETRIES=3
+ORCHESTRATOR_BACKOFF_BASE_MS=500
+ORCHESTRATOR_BACKOFF_MAX_MS=10000
+ORCHESTRATOR_LOCK_TTL_MS=600000
+ORCHESTRATOR_DEAD_LETTER_PATH=./data/orchestrator-dead-letter.jsonl
 ```
+
+### Orchestrator Patrol Policy (M2)
+
+Default heartbeat behavior (every 15 minutes):
+
+- Scan **all** tasks each run.
+- `backlog`:
+  - Post/start prompt workflow comments (ask for start signal).
+  - Suppress stale/escalation tags by policy.
+- `todo`:
+  - Auto-claim and move to `in_progress` using queue-balancing (least-loaded available agent).
+  - Emit claim+spawn instruction comment so execution can start immediately.
+- `in_progress` / `review`:
+  - Apply stale-task remediation when older than `ORCHESTRATOR_STALE_MINUTES`.
+
+Webhook intake (`/api/orchestrator/webhook/intake`) includes idempotency lock, dedupe key support (`X-Dedupe-Key`), retry with exponential backoff, and dead-letter JSONL logging.
 
 ### Frontend Environment Variables
 
