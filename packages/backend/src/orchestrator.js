@@ -401,7 +401,7 @@ function createOrchestratorService({ dbAdapter, fastify, param, broadcast, dispa
     await addTaskComment(
       task.id,
       `🚀 Orchestrator auto-claim: assigned to **${selectedAgent.name}** (agent #${selectedAgent.id}) and moved to **in_progress**. Triggering sessions_spawn with idempotent run lock.`,
-      2
+      config.orchestratorAgentId
     );
 
     broadcast('task-updated', claimedTask);
