@@ -2368,6 +2368,31 @@ fastify.get('/api/stream', {
 // ============ HEALTH CHECK ============
 
 /**
+ * GET / - Basic service info endpoint.
+ * Useful for platform probes and avoids noisy 404s on root path.
+ */
+fastify.get('/', {
+  schema: {
+    description: 'Basic service info endpoint',
+    tags: ['Health'],
+    response: {
+      200: {
+        type: 'object',
+        properties: {
+          service: { type: 'string' },
+          status: { type: 'string' },
+          docs: { type: 'string' }
+        }
+      }
+    }
+  }
+}, async () => ({
+  service: 'claw-control-backend',
+  status: 'ok',
+  docs: '/docs'
+}));
+
+/**
  * GET /health - Health check endpoint.
  * @returns {object} Health status with database connection info
  */

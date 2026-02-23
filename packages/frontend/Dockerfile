@@ -7,9 +7,9 @@ RUN npm ci
 COPY . .
 RUN npm run build --workspace=@claw-control/frontend
 
-# Production - use http-server with runtime config injection
+# Production - use serve with runtime config injection (SPA-safe)
 FROM node:22-alpine
-RUN npm install -g http-server
+RUN npm install -g serve
 COPY --from=builder /app/packages/frontend/dist /app
 COPY packages/frontend/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh

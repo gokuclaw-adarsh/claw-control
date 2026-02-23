@@ -20,5 +20,5 @@ echo "};" >> $CONFIG_FILE
 echo "Generated config.js:"
 cat $CONFIG_FILE
 
-# Start the server
-exec http-server -p ${PORT:-8080} -c-1 --spa
+# Start the production SPA server (no directory listing)
+exec serve -s /app -l ${PORT:-8080}
