@@ -15,6 +15,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { enforceReviewCompletionGate } = require('./review-gate');
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -460,13 +461,135 @@ function createOrchestratorService({ dbAdapter, fastify, param, broadcast, dispa
     return { action: 'stale_remediated' };
   }
 
+
+  async function safeTask223Comment(content) {
+    try {
+      await addTaskComment(223, content, config.orchestratorAgentId);
+    } catch {
+      // no-op when task #223 does not exist in this environment
+    }
+  }
+
+  function formatStructuredFailureComment(task, gateResult) {
+    const checks = Array.isArray(gateResult?.checks) ? gateResult.checks : [];
+    const payload = {
+      type: 'review_gate_failure',
+      task_id: task.id,
+      task_status_before: task.status,
+      actor: 'goku',
+      checks,
+      reason: gateResult?.reason || 'Review completion gate failed',
+      at: new Date().toISOString()
+    };
+
+    const bulletChecks = checks.length > 0
+      ? checks.map((check, index) => `${index + 1}. ${check}`).join('\n')
+      : '1. Unknown gate failure.';
+
+    return `❌ [M6][REVIEW-FAIL] Autonomous review failed for task #${task.id}.\n\n` +
+      `**Gate checks failed:**\n${bulletChecks}\n\n` +
+      '```json\n' + JSON.stringify(payload, null, 2) + '\n```';
+  }
+
+  async function handleReviewTask(task, trigger = 'patrol') {
+    const updatedAtMs = new Date(task.updated_at).getTime();
+    const lockKey = `review:${task.id}:${updatedAtMs}`;
+    const now = Date.now();
+
+    if (taskRunLocks.has(lockKey)) {
+      return { action: 'review_skipped_locked' };
+    }
+    taskRunLocks.set(lockKey, now + config.lockTtlMs);
+
+    try {
+      const gate = await enforceReviewCompletionGate({
+        dbAdapter,
+        param,
+        task,
+        actorName: 'goku',
+        autoBounce: true,
+        reasonPrefix: '[AUTO-GATE][ORCH-M6]'
+      });
+
+      if (gate.ok) {
+        const nowFn = dbAdapter.isSQLite() ? "datetime('now')" : 'NOW()';
+        const { rows } = await dbAdapter.query(
+          `UPDATE tasks
+           SET status = 'completed', updated_at = ${nowFn}
+           WHERE id = ${param(1)} AND status = 'review'
+           RETURNING *`,
+          [task.id]
+        );
+
+        const completedTask = rows[0] || null;
+        if (!completedTask) return { action: 'review_noop_changed' };
+
+        await addTaskComment(
+          task.id,
+          '✅ [M6] Autonomous Goku review worker completed this task after passing review completion gate checks.',
+          config.orchestratorAgentId
+        );
+        broadcast('task-updated', completedTask);
+        dispatchWebhook('task-updated', completedTask);
+        await postFeed(config.orchestratorAgentId, `✅ [M6] Review task #${task.id} passed gate checks and was auto-completed by Goku/coordinator.`);
+        return { action: 'review_completed' };
+      }
+
+      const structuredFailureComment = formatStructuredFailureComment(task, gate);
+      await addTaskComment(task.id, structuredFailureComment, config.orchestratorAgentId);
+
+      let reassignedAgent = null;
+      if (parseBoolEnv('ORCHESTRATOR_REVIEW_REASSIGN', false)) {
+        const selectedAgent = await chooseLeastLoadedAgent();
+        if (selectedAgent && Number(selectedAgent.id) !== Number(task.agent_id)) {
+          const nowFn = dbAdapter.isSQLite() ? "datetime('now')" : 'NOW()';
+          const { rows: reassignedRows } = await dbAdapter.query(
+            `UPDATE tasks
+             SET agent_id = ${param(1)}, updated_at = ${nowFn}
+             WHERE id = ${param(2)} AND status = 'todo'
+             RETURNING *`,
+            [selectedAgent.id, task.id]
+          );
+          if (reassignedRows[0]) {
+            reassignedAgent = selectedAgent;
+            broadcast('task-updated', reassignedRows[0]);
+            dispatchWebhook('task-updated', reassignedRows[0]);
+          }
+        }
+      }
+
+      if (gate.bouncedTask) {
+        broadcast('task-updated', gate.bouncedTask);
+        dispatchWebhook('task-updated', gate.bouncedTask);
+      }
+
+      const reassignedMsg = reassignedAgent
+        ? ` Reassigned to ${reassignedAgent.name} (agent #${reassignedAgent.id}).`
+        : '';
+      await postFeed(
+        config.orchestratorAgentId,
+        `❌ [M6] Review task #${task.id} failed gate checks and was moved back to TODO.${reassignedMsg}`
+      );
+
+      return {
+        action: 'review_failed_bounced',
+        reassigned_agent_id: reassignedAgent ? reassignedAgent.id : null
+      };
+    } finally {
+      taskRunLocks.delete(lockKey);
+    }
+  }
+
   async function runHeartbeatPatrol(trigger = 'timer') {
     if (!config.enabled || !config.heartbeatEnabled) {
       return { success: true, skipped: true, reason: 'disabled' };
     }
 
+    await safeTask223Comment(`🟦 [M6] Patrol start (${trigger}) at ${new Date().toISOString()}.`);
+    await postFeed(config.orchestratorAgentId, `🟦 [M6] Autonomous review patrol started (trigger=${trigger}).`);
+
     const { rows: tasks } = await dbAdapter.query(
-      `SELECT id, title, description, context, status, tags, updated_at, agent_id FROM tasks ORDER BY id ASC`
+      `SELECT id, title, description, context, status, tags, updated_at, agent_id, deliverable_type, deliverable_content FROM tasks ORDER BY id ASC`
     );
 
     const nowMs = Date.now();
@@ -478,6 +601,8 @@ function createOrchestratorService({ dbAdapter, fastify, param, broadcast, dispa
       scanned: tasks.length,
       backlog_prompted: 0,
       todo_claimed_spawned_review: 0,
+      review_completed: 0,
+      review_failed_bounced: 0,
       stale_remediated: 0,
       deferred: 0
     };
@@ -496,12 +621,25 @@ function createOrchestratorService({ dbAdapter, fastify, param, broadcast, dispa
         continue;
       }
 
+      if (task.status === 'review') {
+        const result = await handleReviewTask(task, trigger);
+        if (result.action === 'review_completed') summary.review_completed += 1;
+        else if (result.action === 'review_failed_bounced') summary.review_failed_bounced += 1;
+        continue;
+      }
+
       const updatedMs = new Date(task.updated_at).getTime();
-      if (updatedMs <= staleCutoffMs && ['in_progress', 'review'].includes(task.status)) {
+      if (updatedMs <= staleCutoffMs && ['in_progress'].includes(task.status)) {
         await handleGenericStaleTask(task);
         summary.stale_remediated += 1;
       }
     }
+
+    await safeTask223Comment(`🟩 [M6] Patrol end (${trigger}). Summary: ${JSON.stringify(summary)}`);
+    await postFeed(
+      config.orchestratorAgentId,
+      `🟩 [M6] Autonomous review patrol complete. scanned=${summary.scanned}, review_completed=${summary.review_completed}, review_failed_bounced=${summary.review_failed_bounced}.`
+    );
 
     fastify.log.info({ summary }, '[orchestrator] Heartbeat patrol complete');
     return { success: true, ...summary };

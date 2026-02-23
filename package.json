@@ -13,7 +13,8 @@
     "start": "serve -s packages/frontend/dist -l $PORT",
     "lint": "npm run lint --workspaces --if-present",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "verify:autonomy:m8": "npm run verify:autonomy:m8 --workspace=@claw-control/backend"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.1.4",

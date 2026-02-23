@@ -17,6 +17,7 @@ const { loadAgentsConfig, getConfigPath, CONFIG_PATHS } = require('./config-load
 const { dispatchWebhook, reloadWebhooks, getWebhooks, SUPPORTED_EVENTS } = require('./webhook');
 const { createOrchestratorService } = require('./orchestrator');
 const { withAuth, isAuthEnabled } = require('./auth');
+const { getActorName, enforceReviewCompletionGate } = require('./review-gate');
 const v3Migration = require('./migrations/v3_mentions_profiles');
 const v4Migration = require('./migrations/v4_task_comments');
 const v5Migration = require('./migrations/v5_task_context');
@@ -561,8 +562,10 @@ fastify.put('/api/tasks/:id', {
     const existingTask = existingRows[0];
     if (existingTask.status === 'review') {
       const gate = await enforceReviewCompletionGate({
-        request,
+        dbAdapter,
+        param,
         task: existingTask,
+        actorName: getActorName(request),
         pendingDeliverableType: deliverable_type,
         pendingDeliverableContent: deliverable_content
       });
@@ -1057,86 +1060,6 @@ const STATUS_PROGRESSION = {
   'completed': null
 };
 
-function getActorName(request) {
-  const headerCandidates = [
-    request.headers['x-actor-name'],
-    request.headers['x-agent-name'],
-    request.headers['x-user-name'],
-    request.headers['x-requested-by']
-  ];
-
-  const actor = headerCandidates.find(v => typeof v === 'string' && v.trim().length > 0);
-  return actor ? actor.trim() : null;
-}
-
-function isCoordinatorActor(actorName) {
-  if (!actorName) return false;
-  const normalized = actorName.trim().toLowerCase();
-  return normalized === 'goku' || normalized === 'coordinator';
-}
-
-async function bounceTaskToTodo(taskId, reason) {
-  const nowFn = dbAdapter.isSQLite() ? "datetime('now')" : 'NOW()';
-
-  const { rows } = await dbAdapter.query(
-    `UPDATE tasks
-     SET status = 'todo', updated_at = ${nowFn}
-     WHERE id = ${param(1)}
-     RETURNING *`,
-    [taskId]
-  );
-
-  const task = rows[0] || null;
-
-  await dbAdapter.query(
-    `INSERT INTO task_comments (task_id, agent_id, content)
-     VALUES (${param(1)}, ${param(2)}, ${param(3)})`,
-    [taskId, null, reason]
-  );
-
-  return task;
-}
-
-async function enforceReviewCompletionGate({ request, task, pendingDeliverableType, pendingDeliverableContent }) {
-  const actor = getActorName(request);
-  const checks = [];
-
-  if (!isCoordinatorActor(actor)) {
-    checks.push(`Only Goku/coordinator can move review -> completed (actor: ${actor || 'unknown'}).`);
-  }
-
-  const effectiveDeliverableType = pendingDeliverableType ?? task.deliverable_type;
-  const effectiveDeliverableContent = pendingDeliverableContent ?? task.deliverable_content;
-
-  if (!effectiveDeliverableType || !effectiveDeliverableContent) {
-    checks.push('Deliverable is missing (deliverable_type and deliverable_content are required).');
-  }
-
-  const { rows: subtaskStats } = await dbAdapter.query(
-    `SELECT
-      COUNT(*) AS total,
-      SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) AS done
-     FROM subtasks
-     WHERE task_id = ${param(1)}`,
-    [task.id]
-  );
-
-  const totalSubtasks = parseInt(subtaskStats[0]?.total || 0, 10);
-  const doneSubtasks = parseInt(subtaskStats[0]?.done || 0, 10);
-
-  if (totalSubtasks > 0 && doneSubtasks < totalSubtasks) {
-    checks.push(`Subtasks incomplete (${doneSubtasks}/${totalSubtasks} done).`);
-  }
-
-  if (checks.length === 0) {
-    return { ok: true };
-  }
-
-  const reason = `[AUTO-GATE] Review -> completed denied. Task moved back to TODO. Reasons: ${checks.join(' ')}`;
-  const bouncedTask = await bounceTaskToTodo(task.id, reason);
-
-  return { ok: false, bouncedTask, reason };
-}
 
 async function maybeAnnotateStaleReviewTasks(agentId) {
   const staleHours = parseInt(process.env.REVIEW_STALE_HOURS || '24', 10);
@@ -1250,6 +1173,26 @@ fastify.post('/api/tasks/:id/progress', {
     }
   }
 
+  // Review gate on workflow progression as well (prevents silent bypass via /progress).
+  if (task.status === 'review' && nextStatus === 'completed') {
+    const gate = await enforceReviewCompletionGate({
+      dbAdapter,
+      param,
+      task,
+      actorName: getActorName(request)
+    });
+    if (!gate.ok) {
+      if (gate.bouncedTask) {
+        broadcast('task-updated', gate.bouncedTask);
+        dispatchWebhook('task-updated', gate.bouncedTask);
+      }
+      return reply.status(400).send({
+        error: gate.reason,
+        task: gate.bouncedTask
+      });
+    }
+  }
+
   const { rows } = await dbAdapter.query(
     `UPDATE tasks 
      SET status = ${param(1)}, updated_at = ${nowFn}
@@ -1296,12 +1239,42 @@ fastify.post('/api/tasks/:id/complete', {
           task: { $ref: 'Task#' }
         }
       },
+      400: { $ref: 'Error#' },
       404: { $ref: 'Error#' }
     }
   }
 }, async (request, reply) => {
   const { id } = request.params;
   const nowFn = dbAdapter.isSQLite() ? "datetime('now')" : 'NOW()';
+
+  const { rows: existingRows } = await dbAdapter.query(
+    `SELECT * FROM tasks WHERE id = ${param(1)}`,
+    [id]
+  );
+
+  if (existingRows.length === 0) {
+    return reply.status(404).send({ error: 'Task not found' });
+  }
+
+  const existingTask = existingRows[0];
+  if (existingTask.status === 'review') {
+    const gate = await enforceReviewCompletionGate({
+      dbAdapter,
+      param,
+      task: existingTask,
+      actorName: getActorName(request)
+    });
+    if (!gate.ok) {
+      if (gate.bouncedTask) {
+        broadcast('task-updated', gate.bouncedTask);
+        dispatchWebhook('task-updated', gate.bouncedTask);
+      }
+      return reply.status(400).send({
+        error: gate.reason,
+        task: gate.bouncedTask
+      });
+    }
+  }
 
   const { rows } = await dbAdapter.query(
     `UPDATE tasks 
@@ -1310,10 +1283,6 @@ fastify.post('/api/tasks/:id/complete', {
      RETURNING *`,
     [id]
   );
-
-  if (rows.length === 0) {
-    return reply.status(404).send({ error: 'Task not found' });
-  }
 
   const task = rows[0];
   broadcast('task-updated', task);
