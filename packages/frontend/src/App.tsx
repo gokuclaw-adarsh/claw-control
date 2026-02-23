@@ -1,16 +1,17 @@
 import { useCallback, useState } from 'react';
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
-import { Wifi, WifiOff, Bot, LayoutGrid, MessageSquare } from 'lucide-react';
+import { Wifi, WifiOff, Bot, LayoutGrid, MessageSquare, Activity } from 'lucide-react';
 import { AgentsList } from './components/AgentsList';
 import { KanbanBoard } from './components/KanbanBoard';
 import { AgentChat } from './components/AgentChat';
 import { OperationsObservabilityPanel } from './components/OperationsObservabilityPanel';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './components/ui/dialog';
 import { useAgents, useTasks, useMessages, useSSE, useOpsObservability, transformAgent, transformTask } from './hooks/useApi';
 import type { Agent, Task, Message, TaskStatus } from './types';
 
 type MobileView = 'agents' | 'board' | 'chat';
 
-function Header({ connected }: { connected: boolean }) {
+function Header({ connected, onOpenObservability }: { connected: boolean; onOpenObservability: () => void }) {
   return (
     <header className="h-14 sm:h-16 px-4 sm:px-6 border-b border-white/5 bg-claw-surface/80 backdrop-blur-md flex items-center justify-between">
       <div className="flex items-center gap-3">
@@ -29,25 +30,35 @@ function Header({ connected }: { connected: boolean }) {
         </Link>
       </div>
       
-      <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-colors ${
-        connected 
-          ? 'bg-accent-primary/10 border-accent-primary/30' 
-          : 'bg-accent-danger/10 border-accent-danger/30'
-      }`}>
-        {connected ? (
-          <>
-            <Wifi className="w-3.5 h-3.5 text-accent-primary" />
-            <div className="w-2 h-2 rounded-full bg-accent-primary status-pulse" />
-          </>
-        ) : (
-          <>
-            <WifiOff className="w-3.5 h-3.5 text-accent-danger" />
-            <div className="w-2 h-2 rounded-full bg-accent-danger" />
-          </>
-        )}
-        <span className={`text-xs font-medium ${connected ? 'text-accent-primary' : 'text-accent-danger'}`}>
-          {connected ? 'Live' : 'Offline'}
-        </span>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={onOpenObservability}
+          className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-xs text-gray-200"
+        >
+          <Activity className="w-3.5 h-3.5 text-accent-primary" />
+          Ops
+        </button>
+
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-colors ${
+          connected 
+            ? 'bg-accent-primary/10 border-accent-primary/30' 
+            : 'bg-accent-danger/10 border-accent-danger/30'
+        }`}>
+          {connected ? (
+            <>
+              <Wifi className="w-3.5 h-3.5 text-accent-primary" />
+              <div className="w-2 h-2 rounded-full bg-accent-primary status-pulse" />
+            </>
+          ) : (
+            <>
+              <WifiOff className="w-3.5 h-3.5 text-accent-danger" />
+              <div className="w-2 h-2 rounded-full bg-accent-danger" />
+            </>
+          )}
+          <span className={`text-xs font-medium ${connected ? 'text-accent-primary' : 'text-accent-danger'}`}>
+            {connected ? 'Live' : 'Offline'}
+          </span>
+        </div>
       </div>
     </header>
   );
@@ -105,6 +116,7 @@ function MobileNav({ activeView, onViewChange, agentCount, messageCount }: Mobil
 function Dashboard() {
   const [mobileView, setMobileView] = useState<MobileView>('board');
   const [feedCollapsed, setFeedCollapsed] = useState(false);
+  const [observabilityOpen, setObservabilityOpen] = useState(false);
   const { agents, setAgents, loading: agentsLoading } = useAgents();
   const { kanban, loading: tasksLoading, moveTask, setTasks, loadMoreCompleted, completedLoadingMore, completedHasMore } = useTasks();
   const { messages, loading: messagesLoading, addMessage, loadMore: loadMoreMessages, loadingMore: messagesLoadingMore, hasMore: messagesHasMore } = useMessages();
@@ -163,7 +175,7 @@ function Dashboard() {
 
   return (
     <>
-      <Header connected={connected} />
+      <Header connected={connected} onOpenObservability={() => setObservabilityOpen(true)} />
       
       {/* Desktop Layout (md+) */}
       <main className="flex-1 hidden md:flex overflow-hidden">
@@ -172,9 +184,8 @@ function Dashboard() {
           <AgentsList agents={agents} loading={agentsLoading} />
         </aside>
 
-        {/* Main Area - Operations + Kanban Board */}
+        {/* Main Area - Kanban Board */}
         <section className="flex-1 overflow-hidden bg-claw-bg flex flex-col">
-          <OperationsObservabilityPanel data={opsData} loading={opsLoading} />
           <div className="flex-1 overflow-hidden">
             <KanbanBoard 
               kanban={kanban} 
@@ -212,7 +223,6 @@ function Dashboard() {
 
         <div className={`h-full overflow-hidden ${mobileView === 'board' ? 'block' : 'hidden'}`}>
           <div className="h-full flex flex-col overflow-hidden">
-            <OperationsObservabilityPanel data={opsData} loading={opsLoading} />
             <div className="flex-1 overflow-hidden">
               <KanbanBoard 
                 kanban={kanban} 
@@ -237,6 +247,25 @@ function Dashboard() {
           />
         </div>
       </main>
+
+      <Dialog open={observabilityOpen} onOpenChange={setObservabilityOpen}>
+        <DialogTrigger asChild>
+          <button
+            onClick={() => setObservabilityOpen(true)}
+            className="md:hidden fixed bottom-20 right-4 z-40 inline-flex items-center gap-2 px-3 py-2 rounded-full bg-claw-surface border border-white/10 shadow-lg text-xs text-gray-100"
+          >
+            <Activity className="w-4 h-4 text-accent-primary" /> Ops
+          </button>
+        </DialogTrigger>
+        <DialogContent className="max-w-5xl w-[95vw] p-0 bg-claw-surface border-white/10 text-white overflow-hidden">
+          <DialogHeader className="px-4 py-3 border-b border-white/10">
+            <DialogTitle className="text-sm">Operations Observability</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[80vh] overflow-auto">
+            <OperationsObservabilityPanel data={opsData} loading={opsLoading} />
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <MobileNav 
         activeView={mobileView} 

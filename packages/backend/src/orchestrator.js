@@ -113,10 +113,15 @@ function createOrchestratorService({ dbAdapter, fastify, param, broadcast, dispa
   }
 
   async function addTaskComment(taskId, content, agentId = 2) {
-    await dbAdapter.query(
-      `INSERT INTO task_comments (task_id, agent_id, content) VALUES (${param(1)}, ${param(2)}, ${param(3)})`,
+    const { rows } = await dbAdapter.query(
+      `INSERT INTO task_comments (task_id, agent_id, content) VALUES (${param(1)}, ${param(2)}, ${param(3)}) RETURNING *`,
       [taskId, agentId, content]
     );
+
+    const comment = rows[0];
+    if (comment) {
+      broadcast('comment-created', { task_id: Number(taskId), comment });
+    }
   }
 
   async function updateTaskTags(task, tags) {

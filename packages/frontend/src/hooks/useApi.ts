@@ -456,6 +456,14 @@ export function useTasks() {
     fetchTasks();
   }, [fetchTasks]);
 
+  // Fallback sync: keep board fresh even when SSE events are missed
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchTasks();
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [fetchTasks]);
+
   /**
    * Load more completed tasks for infinite scroll.
    * Appends older completed tasks to the existing list.
