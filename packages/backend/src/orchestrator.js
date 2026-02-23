@@ -69,7 +69,8 @@ function createOrchestratorService({ dbAdapter, fastify, param, broadcast, dispa
     spawnUrl: process.env.ORCHESTRATOR_SESSIONS_SPAWN_URL || '',
     spawnAuthToken: process.env.ORCHESTRATOR_SESSIONS_SPAWN_TOKEN || '',
     spawnTimeoutMs: parseIntEnv('ORCHESTRATOR_SPAWN_TIMEOUT_MS', 12_000),
-    spawnFallbackLocal: parseBoolEnv('ORCHESTRATOR_SPAWN_FALLBACK_LOCAL', true)
+    spawnFallbackLocal: parseBoolEnv('ORCHESTRATOR_SPAWN_FALLBACK_LOCAL', true),
+    orchestratorAgentId: parseIntEnv('ORCHESTRATOR_AGENT_ID', 1)
   };
 
   const locks = new Map();
@@ -147,7 +148,7 @@ function createOrchestratorService({ dbAdapter, fastify, param, broadcast, dispa
     throw lastErr || new Error('Orchestrator intake failed');
   }
 
-  async function addTaskComment(taskId, content, agentId = 2) {
+  async function addTaskComment(taskId, content, agentId = config.orchestratorAgentId) {
     const { rows } = await dbAdapter.query(
       `INSERT INTO task_comments (task_id, agent_id, content) VALUES (${param(1)}, ${param(2)}, ${param(3)}) RETURNING *`,
       [taskId, agentId, content]
@@ -211,7 +212,7 @@ function createOrchestratorService({ dbAdapter, fastify, param, broadcast, dispa
       await addTaskComment(
         task.id,
         '🤖 Orchestrator heartbeat: backlog patrol check-in. Please provide **start signal** (or approval prompt) to begin this workflow. Staleness escalation is suppressed for backlog tasks by policy.',
-        2
+        config.orchestratorAgentId
       );
     }
 
@@ -387,7 +388,7 @@ function createOrchestratorService({ dbAdapter, fastify, param, broadcast, dispa
       await addTaskComment(
         task.id,
         '⚠️ Orchestrator heartbeat: no available idle/working agent for auto-claim. Queue balancing deferred to next patrol cycle.',
-        2
+        config.orchestratorAgentId
       );
       return { action: 'todo_deferred_no_agent' };
     }
@@ -405,7 +406,7 @@ function createOrchestratorService({ dbAdapter, fastify, param, broadcast, dispa
 
     broadcast('task-updated', claimedTask);
     dispatchWebhook('task-updated', claimedTask);
-    await postFeed(2, `🧭 Orchestrator claimed task #${task.id} for ${selectedAgent.name}; status set to in_progress.`);
+    await postFeed(config.orchestratorAgentId, `🧭 Orchestrator claimed task #${task.id} for ${selectedAgent.name}; status set to in_progress.`);
 
     const { run } = await createOrGetRun(claimedTask, selectedAgent, trigger);
     if (!run) {
@@ -413,7 +414,7 @@ function createOrchestratorService({ dbAdapter, fastify, param, broadcast, dispa
     }
 
     if (!['claimed', 'spawning'].includes(String(run.status))) {
-      await addTaskComment(task.id, `ℹ️ Orchestrator: skipped duplicate spawn for existing run #${run.id} (status: ${run.status}).`, 2);
+      await addTaskComment(task.id, `ℹ️ Orchestrator: skipped duplicate spawn for existing run #${run.id} (status: ${run.status}).`, config.orchestratorAgentId);
       return { action: 'todo_claimed_spawn_duplicate', agent_id: selectedAgent.id, run_id: run.id };
     }
 
@@ -422,18 +423,18 @@ function createOrchestratorService({ dbAdapter, fastify, param, broadcast, dispa
       await addTaskComment(
         task.id,
         `⚠️ Orchestrator spawn trigger did not complete (${spawnResult.reason || 'unknown'}). Task remains **in_progress** for retry.`,
-        2
+        config.orchestratorAgentId
       );
-      await postFeed(2, `⚠️ Spawn trigger failed/skipped for task #${task.id}; run #${run.id}; reason=${spawnResult.reason || 'unknown'}.`);
+      await postFeed(config.orchestratorAgentId, `⚠️ Spawn trigger failed/skipped for task #${task.id}; run #${run.id}; reason=${spawnResult.reason || 'unknown'}.`);
       return { action: 'todo_claimed_spawn_failed', agent_id: selectedAgent.id, run_id: run.id };
     }
 
     const reviewTask = await moveClaimedTaskToReview(task.id);
     if (reviewTask) {
-      await addTaskComment(task.id, '✅ sessions_spawn accepted. Task advanced from **in_progress** to **review** (awaiting execution output/adversarial review).', 2);
+      await addTaskComment(task.id, '✅ sessions_spawn accepted. Task advanced from **in_progress** to **review** (awaiting execution output/adversarial review).', config.orchestratorAgentId);
       broadcast('task-updated', reviewTask);
       dispatchWebhook('task-updated', reviewTask);
-      await postFeed(2, `✅ Spawn accepted for task #${task.id}; moved to review.`);
+      await postFeed(config.orchestratorAgentId, `✅ Spawn accepted for task #${task.id}; moved to review.`);
     }
 
     return {
