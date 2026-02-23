@@ -23,6 +23,12 @@ export interface Task {
   agentId?: string;
   assigneesCount?: number;
   requires_approval?: boolean;
+  spawnSessionId?: string;
+  spawnRunId?: string;
+  currentStep?: string;
+  lastHeartbeatDecision?: string;
+  failureReason?: string;
+  retryCount?: number;
   approved_at?: string;
   approved_by?: string;
   subtaskCount?: number;

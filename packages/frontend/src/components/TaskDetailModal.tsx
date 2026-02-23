@@ -83,6 +83,30 @@ function getRelativeTime(dateString?: string): string {
   return formatDate(dateString);
 }
 
+function TelemetryItem({
+  label,
+  value,
+  mono,
+  fullWidth,
+  tone = 'default',
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+  fullWidth?: boolean;
+  tone?: 'default' | 'muted' | 'danger';
+}) {
+  const toneClass = tone === 'danger' ? 'text-red-300' : tone === 'muted' ? 'text-accent-muted' : 'text-white';
+  return (
+    <div className={fullWidth ? 'sm:col-span-2' : ''}>
+      <p className="text-[11px] uppercase tracking-wide text-accent-muted mb-1">{label}</p>
+      <p className={`text-sm break-words ${mono ? 'font-mono text-xs sm:text-sm' : ''} ${toneClass}`}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
 interface TaskDetailModalProps {
   task: Task | null;
   agents: Agent[];
@@ -722,6 +746,25 @@ export function TaskDetailModal({ task, agents, open, onOpenChange }: TaskDetail
               <div>
                 <p className="text-sm font-medium text-white">{formatDate(task.updatedAt)}</p>
                 <p className="text-xs text-accent-muted">{getRelativeTime(task.updatedAt)}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Execution Telemetry */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-accent-secondary flex items-center gap-2">
+              <Activity className="w-4 h-4" />
+              Execution Telemetry
+            </h3>
+            <div className="bg-white/[0.02] rounded-xl p-4 border border-white/5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <TelemetryItem label="Assigned Agent" value={agent?.name || 'Unassigned'} />
+                <TelemetryItem label="Current Step" value={task.currentStep || 'Not reported'} />
+                <TelemetryItem label="Spawn Session" value={task.spawnSessionId || 'Not reported'} mono />
+                <TelemetryItem label="Spawn Run" value={task.spawnRunId || 'Not reported'} mono />
+                <TelemetryItem label="Last Heartbeat Decision" value={task.lastHeartbeatDecision || 'Not reported'} fullWidth />
+                <TelemetryItem label="Failure Reason" value={task.failureReason || 'None'} fullWidth tone={task.failureReason ? 'danger' : 'muted'} />
+                <TelemetryItem label="Retry Count" value={String(task.retryCount ?? 0)} />
               </div>
             </div>
           </div>
