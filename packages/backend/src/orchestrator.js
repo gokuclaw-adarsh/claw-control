@@ -7,6 +7,8 @@
  * - 15-minute heartbeat patrol across ALL tasks
  * - Backlog workflow prompting + staleness suppression
  * - Todo auto-claim + start execution (claim+spawn policy signal)
+ * - Per-task run-lock + idempotent sessions_spawn trigger (M3)
+ * - In-progress -> review handoff after spawn trigger
  * - Stale-task remediation + simple queue balancing
  */
 
@@ -62,12 +64,41 @@ function createOrchestratorService({ dbAdapter, fastify, param, broadcast, dispa
     maxRetries: parseIntEnv('ORCHESTRATOR_MAX_RETRIES', 3),
     backoffBaseMs: parseIntEnv('ORCHESTRATOR_BACKOFF_BASE_MS', 500),
     backoffMaxMs: parseIntEnv('ORCHESTRATOR_BACKOFF_MAX_MS', 10_000),
-    deadLetterPath: process.env.ORCHESTRATOR_DEAD_LETTER_PATH || path.resolve(process.cwd(), 'data', 'orchestrator-dead-letter.jsonl')
+    deadLetterPath: process.env.ORCHESTRATOR_DEAD_LETTER_PATH || path.resolve(process.cwd(), 'data', 'orchestrator-dead-letter.jsonl'),
+    spawnEnabled: parseBoolEnv('ORCHESTRATOR_SPAWN_ENABLED', true),
+    spawnUrl: process.env.ORCHESTRATOR_SESSIONS_SPAWN_URL || '',
+    spawnAuthToken: process.env.ORCHESTRATOR_SESSIONS_SPAWN_TOKEN || '',
+    spawnTimeoutMs: parseIntEnv('ORCHESTRATOR_SPAWN_TIMEOUT_MS', 12_000)
   };
 
   const locks = new Map();
   const processed = new Map();
+  const taskRunLocks = new Map();
   let heartbeatTimer = null;
+
+  async function ensureRunTable() {
+    const nowType = dbAdapter.isSQLite() ? 'TEXT' : 'TIMESTAMP';
+    const nowDefault = dbAdapter.isSQLite() ? "datetime('now')" : 'NOW()';
+    const idType = dbAdapter.isSQLite() ? 'INTEGER PRIMARY KEY AUTOINCREMENT' : 'SERIAL PRIMARY KEY';
+    await dbAdapter.query(`
+      CREATE TABLE IF NOT EXISTS orchestrator_task_runs (
+        id ${idType},
+        task_id INTEGER NOT NULL,
+        agent_id INTEGER,
+        trigger TEXT,
+        idempotency_key TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'claimed',
+        spawn_payload TEXT,
+        spawn_response TEXT,
+        last_error TEXT,
+        created_at ${nowType} DEFAULT ${nowDefault},
+        updated_at ${nowType} DEFAULT ${nowDefault},
+        completed_at ${nowType}
+      )
+    `);
+    await dbAdapter.query('CREATE UNIQUE INDEX IF NOT EXISTS idx_orch_task_runs_idem ON orchestrator_task_runs(idempotency_key)');
+    await dbAdapter.query('CREATE INDEX IF NOT EXISTS idx_orch_task_runs_task_id ON orchestrator_task_runs(task_id)');
+  }
 
   function cleanupMaps() {
     const now = Date.now();
@@ -76,6 +107,9 @@ function createOrchestratorService({ dbAdapter, fastify, param, broadcast, dispa
     }
     for (const [k, expiry] of processed.entries()) {
       if (expiry <= now) processed.delete(k);
+    }
+    for (const [k, expiry] of taskRunLocks.entries()) {
+      if (expiry <= now) taskRunLocks.delete(k);
     }
   }
 
@@ -121,6 +155,18 @@ function createOrchestratorService({ dbAdapter, fastify, param, broadcast, dispa
     const comment = rows[0];
     if (comment) {
       broadcast('comment-created', { task_id: Number(taskId), comment });
+    }
+  }
+
+  async function postFeed(agentId, message) {
+    const { rows } = await dbAdapter.query(
+      `INSERT INTO agent_messages (agent_id, message) VALUES (${param(1)}, ${param(2)}) RETURNING *`,
+      [agentId, message]
+    );
+    const msg = rows[0];
+    if (msg) {
+      broadcast('message-created', msg);
+      dispatchWebhook('message-created', msg);
     }
   }
 
@@ -171,17 +217,7 @@ function createOrchestratorService({ dbAdapter, fastify, param, broadcast, dispa
     return { action: 'backlog_prompted' };
   }
 
-  async function handleTodoTask(task) {
-    const selectedAgent = await chooseLeastLoadedAgent();
-    if (!selectedAgent) {
-      await addTaskComment(
-        task.id,
-        '⚠️ Orchestrator heartbeat: no available idle/working agent for auto-claim. Queue balancing deferred to next patrol cycle.',
-        2
-      );
-      return { action: 'todo_deferred_no_agent' };
-    }
-
+  async function claimTodoTask(task, selectedAgent) {
     const nowFn = dbAdapter.isSQLite() ? "datetime('now')" : 'NOW()';
     const { rows } = await dbAdapter.query(
       `UPDATE tasks
@@ -192,22 +228,205 @@ function createOrchestratorService({ dbAdapter, fastify, param, broadcast, dispa
        RETURNING *`,
       [selectedAgent.id, task.id]
     );
+    return rows[0] || null;
+  }
 
-    if (!rows.length) {
+  async function createOrGetRun(task, selectedAgent, trigger) {
+    await ensureRunTable();
+    const idem = `task:${task.id}:agent:${selectedAgent.id}:updated:${new Date(task.updated_at).getTime()}`;
+    const payload = JSON.stringify({ task_id: task.id, agent_id: selectedAgent.id, trigger });
+    const nowFn = dbAdapter.isSQLite() ? "datetime('now')" : 'NOW()';
+
+    try {
+      await dbAdapter.query(
+        `INSERT INTO orchestrator_task_runs (task_id, agent_id, trigger, idempotency_key, status, spawn_payload)
+         VALUES (${param(1)}, ${param(2)}, ${param(3)}, ${param(4)}, 'claimed', ${param(5)})`,
+        [task.id, selectedAgent.id, trigger, idem, payload]
+      );
+    } catch (err) {
+      const msg = String(err?.message || err);
+      if (!msg.toLowerCase().includes('unique')) throw err;
+    }
+
+    const { rows } = await dbAdapter.query(
+      `SELECT * FROM orchestrator_task_runs WHERE idempotency_key = ${param(1)} ORDER BY id DESC LIMIT 1`,
+      [idem]
+    );
+
+    const run = rows[0] || null;
+    return { run, idempotencyKey: idem };
+  }
+
+  async function updateRun(runId, status, patch = {}) {
+    const nowFn = dbAdapter.isSQLite() ? "datetime('now')" : 'NOW()';
+    const cols = ['status = ' + param(1), `updated_at = ${nowFn}`];
+    const params = [status];
+
+    if (Object.prototype.hasOwnProperty.call(patch, 'spawn_response')) {
+      cols.push(`spawn_response = ${param(params.length + 1)}`);
+      params.push(patch.spawn_response);
+    }
+    if (Object.prototype.hasOwnProperty.call(patch, 'last_error')) {
+      cols.push(`last_error = ${param(params.length + 1)}`);
+      params.push(patch.last_error);
+    }
+    if (patch.complete === true) {
+      cols.push(`completed_at = ${nowFn}`);
+    }
+
+    params.push(runId);
+    await dbAdapter.query(
+      `UPDATE orchestrator_task_runs SET ${cols.join(', ')} WHERE id = ${param(params.length)}`,
+      params
+    );
+  }
+
+  async function triggerSessionsSpawn(task, selectedAgent, run, trigger) {
+    const lockKey = `task:${task.id}`;
+    const now = Date.now();
+    if (taskRunLocks.has(lockKey)) {
+      return { ok: false, duplicate: true, reason: 'task-run-locked' };
+    }
+    taskRunLocks.set(lockKey, now + config.lockTtlMs);
+
+    try {
+      if (!config.spawnEnabled) {
+        await updateRun(run.id, 'spawn_skipped_disabled', { complete: true });
+        return { ok: false, skipped: true, reason: 'spawn-disabled' };
+      }
+
+      await updateRun(run.id, 'spawning');
+
+      const requestPayload = {
+        eventType: 'sessions_spawn',
+        trigger,
+        run_id: run.id,
+        task: {
+          id: task.id,
+          title: task.title,
+          description: task.description || '',
+          context: task.context || '',
+          status: task.status
+        },
+        agent: {
+          id: selectedAgent.id,
+          name: selectedAgent.name
+        }
+      };
+
+      if (!config.spawnUrl) {
+        await updateRun(run.id, 'spawn_queued_no_endpoint', {
+          spawn_response: JSON.stringify({ accepted: false, reason: 'ORCHESTRATOR_SESSIONS_SPAWN_URL not configured' })
+        });
+        return { ok: false, skipped: true, reason: 'spawn-endpoint-missing' };
+      }
+
+      const headers = {
+        'Content-Type': 'application/json',
+        'X-Dedupe-Key': `run:${run.id}`
+      };
+      if (config.spawnAuthToken) {
+        headers.Authorization = `Bearer ${config.spawnAuthToken}`;
+      }
+
+      const resp = await fetch(config.spawnUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestPayload),
+        signal: AbortSignal.timeout(config.spawnTimeoutMs)
+      });
+
+      const text = await resp.text();
+      const normalizedResponse = JSON.stringify({ status: resp.status, ok: resp.ok, body: text.slice(0, 2000) });
+
+      if (!resp.ok) {
+        await updateRun(run.id, 'spawn_failed', { spawn_response: normalizedResponse, last_error: `HTTP ${resp.status}` });
+        return { ok: false, reason: 'spawn-failed', status: resp.status };
+      }
+
+      await updateRun(run.id, 'spawned', { spawn_response: normalizedResponse, complete: true });
+      return { ok: true, responseStatus: resp.status };
+    } catch (err) {
+      await updateRun(run.id, 'spawn_failed', { last_error: String(err?.message || err) });
+      return { ok: false, reason: 'spawn-exception', error: String(err?.message || err) };
+    } finally {
+      taskRunLocks.delete(lockKey);
+    }
+  }
+
+  async function moveClaimedTaskToReview(taskId) {
+    const nowFn = dbAdapter.isSQLite() ? "datetime('now')" : 'NOW()';
+    const { rows } = await dbAdapter.query(
+      `UPDATE tasks
+       SET status = 'review',
+           updated_at = ${nowFn}
+       WHERE id = ${param(1)} AND status = 'in_progress'
+       RETURNING *`,
+      [taskId]
+    );
+    return rows[0] || null;
+  }
+
+  async function handleTodoTask(task, trigger = 'patrol') {
+    const selectedAgent = await chooseLeastLoadedAgent();
+    if (!selectedAgent) {
+      await addTaskComment(
+        task.id,
+        '⚠️ Orchestrator heartbeat: no available idle/working agent for auto-claim. Queue balancing deferred to next patrol cycle.',
+        2
+      );
+      return { action: 'todo_deferred_no_agent' };
+    }
+
+    const claimedTask = await claimTodoTask(task, selectedAgent);
+    if (!claimedTask) {
       return { action: 'todo_already_changed' };
     }
 
-    const claimedTask = rows[0];
     await addTaskComment(
       task.id,
-      `🚀 Orchestrator heartbeat auto-claim: assigned to **${selectedAgent.name}** (agent #${selectedAgent.id}) and moved to **in_progress**. Claim+spawn policy: execution should be spawned immediately by coordinator rules.`,
+      `🚀 Orchestrator auto-claim: assigned to **${selectedAgent.name}** (agent #${selectedAgent.id}) and moved to **in_progress**. Triggering sessions_spawn with idempotent run lock.`,
       2
     );
 
     broadcast('task-updated', claimedTask);
     dispatchWebhook('task-updated', claimedTask);
+    await postFeed(2, `🧭 Orchestrator claimed task #${task.id} for ${selectedAgent.name}; status set to in_progress.`);
 
-    return { action: 'todo_claimed_started', agent_id: selectedAgent.id };
+    const { run } = await createOrGetRun(claimedTask, selectedAgent, trigger);
+    if (!run) {
+      return { action: 'todo_claimed_no_run' };
+    }
+
+    if (!['claimed', 'spawning'].includes(String(run.status))) {
+      await addTaskComment(task.id, `ℹ️ Orchestrator: skipped duplicate spawn for existing run #${run.id} (status: ${run.status}).`, 2);
+      return { action: 'todo_claimed_spawn_duplicate', agent_id: selectedAgent.id, run_id: run.id };
+    }
+
+    const spawnResult = await triggerSessionsSpawn(claimedTask, selectedAgent, run, trigger);
+    if (!spawnResult.ok) {
+      await addTaskComment(
+        task.id,
+        `⚠️ Orchestrator spawn trigger did not complete (${spawnResult.reason || 'unknown'}). Task remains **in_progress** for retry.`,
+        2
+      );
+      await postFeed(2, `⚠️ Spawn trigger failed/skipped for task #${task.id}; run #${run.id}; reason=${spawnResult.reason || 'unknown'}.`);
+      return { action: 'todo_claimed_spawn_failed', agent_id: selectedAgent.id, run_id: run.id };
+    }
+
+    const reviewTask = await moveClaimedTaskToReview(task.id);
+    if (reviewTask) {
+      await addTaskComment(task.id, '✅ sessions_spawn accepted. Task advanced from **in_progress** to **review** (awaiting execution output/adversarial review).', 2);
+      broadcast('task-updated', reviewTask);
+      dispatchWebhook('task-updated', reviewTask);
+      await postFeed(2, `✅ Spawn accepted for task #${task.id}; moved to review.`);
+    }
+
+    return {
+      action: 'todo_claimed_spawned_review',
+      agent_id: selectedAgent.id,
+      run_id: run.id
+    };
   }
 
   async function handleGenericStaleTask(task) {
@@ -232,7 +451,7 @@ function createOrchestratorService({ dbAdapter, fastify, param, broadcast, dispa
     }
 
     const { rows: tasks } = await dbAdapter.query(
-      `SELECT id, title, status, tags, updated_at, agent_id FROM tasks ORDER BY id ASC`
+      `SELECT id, title, description, context, status, tags, updated_at, agent_id FROM tasks ORDER BY id ASC`
     );
 
     const nowMs = Date.now();
@@ -243,7 +462,7 @@ function createOrchestratorService({ dbAdapter, fastify, param, broadcast, dispa
       trigger,
       scanned: tasks.length,
       backlog_prompted: 0,
-      todo_claimed_started: 0,
+      todo_claimed_spawned_review: 0,
       stale_remediated: 0,
       deferred: 0
     };
@@ -256,8 +475,8 @@ function createOrchestratorService({ dbAdapter, fastify, param, broadcast, dispa
       }
 
       if (task.status === 'todo') {
-        const result = await handleTodoTask(task);
-        if (result.action === 'todo_claimed_started') summary.todo_claimed_started += 1;
+        const result = await handleTodoTask(task, trigger);
+        if (result.action === 'todo_claimed_spawned_review') summary.todo_claimed_spawned_review += 1;
         else summary.deferred += 1;
         continue;
       }
@@ -306,7 +525,7 @@ function createOrchestratorService({ dbAdapter, fastify, param, broadcast, dispa
           return runHeartbeatPatrol(`webhook:${eventType}`);
         }
 
-        // Default action for intake events in M2: run a full patrol scan.
+        // Default action for intake events in M3: run a full patrol scan.
         return runHeartbeatPatrol(`webhook:${eventType}`);
       }, { dedupeKey, eventType });
 
@@ -320,6 +539,42 @@ function createOrchestratorService({ dbAdapter, fastify, param, broadcast, dispa
     } finally {
       locks.delete(dedupeKey);
     }
+  }
+
+  async function getTaskRuns(taskId) {
+    await ensureRunTable();
+    const { rows } = await dbAdapter.query(
+      `SELECT * FROM orchestrator_task_runs WHERE task_id = ${param(1)} ORDER BY id DESC LIMIT 20`,
+      [taskId]
+    );
+    return rows;
+  }
+
+  async function simulateE2EFlow({ taskTitle = '[E2E] orchestrator flow simulation' } = {}) {
+    const nowFn = dbAdapter.isSQLite() ? "datetime('now')" : 'NOW()';
+    const { rows: createdRows } = await dbAdapter.query(
+      `INSERT INTO tasks (title, description, status, created_at, updated_at)
+       VALUES (${param(1)}, ${param(2)}, 'todo', ${nowFn}, ${nowFn})
+       RETURNING *`,
+      [taskTitle, 'Synthetic task created by orchestrator e2e simulation endpoint']
+    );
+
+    const created = createdRows[0];
+    const patrolResult = await runHeartbeatPatrol('manual:e2e');
+    const { rows: refreshedRows } = await dbAdapter.query(
+      `SELECT * FROM tasks WHERE id = ${param(1)} LIMIT 1`,
+      [created.id]
+    );
+    const refreshed = refreshedRows[0] || created;
+    const runs = await getTaskRuns(created.id);
+
+    return {
+      created_task_id: created.id,
+      final_status: refreshed.status,
+      patrol: patrolResult,
+      runs,
+      note: 'If ORCHESTRATOR_SESSIONS_SPAWN_URL is unset, run status will show spawn_queued_no_endpoint.'
+    };
   }
 
   function startHeartbeat() {
@@ -349,7 +604,9 @@ function createOrchestratorService({ dbAdapter, fastify, param, broadcast, dispa
     startHeartbeat,
     stopHeartbeat,
     runHeartbeatPatrol,
-    handleWebhookIntake
+    handleWebhookIntake,
+    getTaskRuns,
+    simulateE2EFlow
   };
 }
 

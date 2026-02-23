@@ -8,6 +8,7 @@
     "dev": "node src/index.js",
     "migrate": "node src/migrate.js",
     "mcp": "node src/mcp-server.js",
+    "verify:orchestrator:e2e": "bash scripts/verify-orchestrator-e2e.sh",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "engines": {

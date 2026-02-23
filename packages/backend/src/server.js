@@ -24,6 +24,8 @@ const v6HeartbeatMigration = require('./migrations/v6_agent_heartbeat');
 const v6ApprovalMigration = require('./migrations/v6_approval_gates');
 const v6AssigneesMigration = require('./migrations/v6_task_assignees');
 const v7SubtasksMigration = require('./migrations/v7_subtasks');
+const v8OrchestratorRunsMigration = require('./migrations/v8_orchestrator_task_runs');
+const v8TaskExecutionTelemetryMigration = require('./migrations/v8_task_execution_telemetry');
 const packageJson = require('../package.json');
 
 /**
@@ -141,6 +143,12 @@ fastify.addSchema({
     requires_approval: { type: 'boolean', description: 'Whether task requires human approval before starting' },
     approved_at: { type: 'string', format: 'date-time', nullable: true, description: 'When task was approved' },
     approved_by: { type: 'string', nullable: true, description: 'Who approved the task' },
+    spawn_session_id: { type: 'string', nullable: true, description: 'Sub-agent spawn session ID handling this task' },
+    spawn_run_id: { type: 'string', nullable: true, description: 'Sub-agent run ID for this task execution' },
+    current_step: { type: 'string', nullable: true, description: 'Current execution step/status string' },
+    last_heartbeat_decision: { type: 'string', nullable: true, description: 'Last heartbeat patrol/decision note' },
+    failure_reason: { type: 'string', nullable: true, description: 'Last failure reason (if any)' },
+    retry_count: { type: 'integer', description: 'Execution retry count' },
     created_at: { type: 'string', format: 'date-time', description: 'Creation timestamp' },
     updated_at: { type: 'string', format: 'date-time', description: 'Last update timestamp' }
   }
@@ -221,7 +229,21 @@ const orchestrator = createOrchestratorService({
   fastify,
   param,
   broadcast,
-  dispatchWebhook
+  dispatchWebhook,
+  onPatrolCycle: async (payload) => {
+    const decisions = Array.isArray(payload?.decisions) ? payload.decisions.slice(-OPS_DECISIONS_LIMIT) : [];
+    opsState.heartbeatPatrol = {
+      lastRunAt: payload?.lastRunAt || new Date().toISOString(),
+      tasksScannedCount: Number(payload?.tasksScannedCount || 0),
+      backlogPendingCount: Number(payload?.backlogPendingCount || 0),
+      todoAutoPickedCount: Number(payload?.todoAutoPickedCount || 0),
+      staleTaskAlerts: Number(payload?.staleTaskAlerts || 0),
+      decisions
+    };
+    opsState.lastUpdated = new Date().toISOString();
+
+    broadcast('ops-heartbeat-patrol-updated', opsState.heartbeatPatrol);
+  }
 });
 
 // Register all API routes as a plugin for Swagger to detect them
@@ -351,7 +373,13 @@ fastify.post('/api/tasks', {
         description: { type: 'string', description: 'Task description' },
         status: { type: 'string', enum: ['backlog', 'todo', 'in_progress', 'review', 'completed'], default: 'backlog' },
         tags: { type: 'array', items: { type: 'string' }, default: [] },
-        agent_id: { type: 'integer', description: 'Assigned agent ID' }
+        agent_id: { type: 'integer', description: 'Assigned agent ID' },
+        spawn_session_id: { type: 'string' },
+        spawn_run_id: { type: 'string' },
+        current_step: { type: 'string' },
+        last_heartbeat_decision: { type: 'string' },
+        failure_reason: { type: 'string' },
+        retry_count: { type: 'integer', minimum: 0 }
       }
     },
     response: {
@@ -360,7 +388,19 @@ fastify.post('/api/tasks', {
     }
   }
 }, async (request, reply) => {
-  const { title, description, status = 'backlog', tags = [], agent_id } = request.body;
+  const {
+    title,
+    description,
+    status = 'backlog',
+    tags = [],
+    agent_id,
+    spawn_session_id,
+    spawn_run_id,
+    current_step,
+    last_heartbeat_decision,
+    failure_reason,
+    retry_count
+  } = request.body;
   
   if (!title) {
     return reply.status(400).send({ error: 'Title is required' });
@@ -369,10 +409,37 @@ fastify.post('/api/tasks', {
   const tagsValue = dbAdapter.isSQLite() ? JSON.stringify(tags) : tags;
 
   const { rows } = await dbAdapter.query(
-    `INSERT INTO tasks (title, description, status, tags, agent_id) 
-     VALUES (${param(1)}, ${param(2)}, ${param(3)}, ${param(4)}, ${param(5)}) 
+    `INSERT INTO tasks (
+      title,
+      description,
+      status,
+      tags,
+      agent_id,
+      spawn_session_id,
+      spawn_run_id,
+      current_step,
+      last_heartbeat_decision,
+      failure_reason,
+      retry_count
+    )
+     VALUES (
+      ${param(1)}, ${param(2)}, ${param(3)}, ${param(4)}, ${param(5)},
+      ${param(6)}, ${param(7)}, ${param(8)}, ${param(9)}, ${param(10)}, ${param(11)}
+    )
      RETURNING *`,
-    [title, description || null, status, tagsValue, agent_id || null]
+    [
+      title,
+      description || null,
+      status,
+      tagsValue,
+      agent_id || null,
+      spawn_session_id || null,
+      spawn_run_id || null,
+      current_step || null,
+      last_heartbeat_decision || null,
+      failure_reason || null,
+      retry_count ?? 0
+    ]
   );
 
   const task = rows[0];
@@ -411,7 +478,13 @@ fastify.put('/api/tasks/:id', {
         agent_id: { type: 'integer' },
         deliverable_type: { type: 'string', enum: ['document', 'spec', 'code', 'review', 'design', 'other'], description: 'Type of deliverable' },
         deliverable_content: { type: 'string', description: 'Deliverable content (URL, text, etc.)' },
-        requires_approval: { type: 'boolean', description: 'Whether task requires human approval before starting' }
+        requires_approval: { type: 'boolean', description: 'Whether task requires human approval before starting' },
+        spawn_session_id: { type: 'string' },
+        spawn_run_id: { type: 'string' },
+        current_step: { type: 'string' },
+        last_heartbeat_decision: { type: 'string' },
+        failure_reason: { type: 'string' },
+        retry_count: { type: 'integer', minimum: 0 }
       }
     },
     response: {
@@ -421,7 +494,23 @@ fastify.put('/api/tasks/:id', {
   }
 }, async (request, reply) => {
   const { id } = request.params;
-  const { title, description, context, status, tags, agent_id, deliverable_type, deliverable_content, requires_approval } = request.body;
+  const {
+    title,
+    description,
+    context,
+    status,
+    tags,
+    agent_id,
+    deliverable_type,
+    deliverable_content,
+    requires_approval,
+    spawn_session_id,
+    spawn_run_id,
+    current_step,
+    last_heartbeat_decision,
+    failure_reason,
+    retry_count
+  } = request.body;
 
   // Validation: task requiring approval cannot move to in_progress without approval
   if (status === 'in_progress') {
@@ -505,10 +594,33 @@ fastify.put('/api/tasks/:id', {
          deliverable_type = COALESCE(${param(7)}, deliverable_type),
          deliverable_content = COALESCE(${param(8)}, deliverable_content),
          requires_approval = COALESCE(${param(9)}, requires_approval),
+         spawn_session_id = COALESCE(${param(10)}, spawn_session_id),
+         spawn_run_id = COALESCE(${param(11)}, spawn_run_id),
+         current_step = COALESCE(${param(12)}, current_step),
+         last_heartbeat_decision = COALESCE(${param(13)}, last_heartbeat_decision),
+         failure_reason = COALESCE(${param(14)}, failure_reason),
+         retry_count = COALESCE(${param(15)}, retry_count),
          updated_at = ${nowFn}
-     WHERE id = ${param(10)}
+     WHERE id = ${param(16)}
      RETURNING *`,
-    [title, description, context, status, tagsValue, agent_id, deliverable_type, deliverable_content, requires_approval, id]
+    [
+      title,
+      description,
+      context,
+      status,
+      tagsValue,
+      agent_id,
+      deliverable_type,
+      deliverable_content,
+      requires_approval,
+      spawn_session_id,
+      spawn_run_id,
+      current_step,
+      last_heartbeat_decision,
+      failure_reason,
+      retry_count,
+      id
+    ]
   );
 
   if (rows.length === 0) {
@@ -2730,6 +2842,58 @@ fastify.post('/api/orchestrator/patrol/run', {
   return orchestrator.runHeartbeatPatrol('manual');
 });
 
+fastify.get('/api/orchestrator/task-runs/:taskId', {
+  schema: {
+    description: 'Get recent orchestrator run records for a task',
+    tags: ['Tasks'],
+    params: {
+      type: 'object',
+      required: ['taskId'],
+      properties: {
+        taskId: { type: 'integer' }
+      }
+    },
+    response: {
+      200: {
+        type: 'object',
+        properties: {
+          taskId: { type: 'integer' },
+          runs: { type: 'array', items: { type: 'object', additionalProperties: true } }
+        }
+      }
+    }
+  }
+}, async (request) => {
+  const taskId = Number(request.params.taskId);
+  const runs = await orchestrator.getTaskRuns(taskId);
+  return { taskId, runs };
+});
+
+fastify.post('/api/orchestrator/simulate/e2e', {
+  ...withAuth,
+  schema: {
+    description: 'Create synthetic todo task and run orchestrator flow end-to-end (todo -> claim -> spawn trigger -> in_progress -> review)',
+    tags: ['Tasks'],
+    security: [{ apiKey: [] }],
+    body: {
+      type: 'object',
+      properties: {
+        taskTitle: { type: 'string' }
+      },
+      additionalProperties: false
+    },
+    response: {
+      200: {
+        type: 'object',
+        additionalProperties: true
+      }
+    }
+  }
+}, async (request) => {
+  const { taskTitle } = request.body || {};
+  return orchestrator.simulateE2EFlow({ taskTitle });
+});
+
 }); // End of routes plugin
 
 // ============ AUTO-SEED ============
@@ -2899,6 +3063,8 @@ const start = async () => {
     fastify.log.info('V6 migration (approval gates) applied');
     await v6AssigneesMigration.up();
     await v7SubtasksMigration.up();
+    await v8OrchestratorRunsMigration.up();
+    await v8TaskExecutionTelemetryMigration.up();
     fastify.log.info('V6 migration (task_assignees) applied');
     await seedAgentsFromConfig();
     
