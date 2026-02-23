@@ -2877,11 +2877,13 @@ const start = async () => {
     fastify.log.info('V6 migration (task_assignees) applied');
     await seedAgentsFromConfig();
     
-    await fastify.listen({ port: PORT, host: '0.0.0.0' });
-    orchestrator.startHeartbeat();
+    // Must register lifecycle hooks before listen
     fastify.addHook('onClose', async () => {
       orchestrator.stopHeartbeat();
     });
+
+    await fastify.listen({ port: PORT, host: '0.0.0.0' });
+    orchestrator.startHeartbeat();
     fastify.log.info(`Server running on port ${PORT}`);
   } catch (err) {
     fastify.log.error(err);
