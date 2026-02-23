@@ -68,7 +68,8 @@ function createOrchestratorService({ dbAdapter, fastify, param, broadcast, dispa
     spawnEnabled: parseBoolEnv('ORCHESTRATOR_SPAWN_ENABLED', true),
     spawnUrl: process.env.ORCHESTRATOR_SESSIONS_SPAWN_URL || '',
     spawnAuthToken: process.env.ORCHESTRATOR_SESSIONS_SPAWN_TOKEN || '',
-    spawnTimeoutMs: parseIntEnv('ORCHESTRATOR_SPAWN_TIMEOUT_MS', 12_000)
+    spawnTimeoutMs: parseIntEnv('ORCHESTRATOR_SPAWN_TIMEOUT_MS', 12_000),
+    spawnFallbackLocal: parseBoolEnv('ORCHESTRATOR_SPAWN_FALLBACK_LOCAL', true)
   };
 
   const locks = new Map();
@@ -315,6 +316,19 @@ function createOrchestratorService({ dbAdapter, fastify, param, broadcast, dispa
       };
 
       if (!config.spawnUrl) {
+        if (config.spawnFallbackLocal) {
+          const fallbackResponse = {
+            accepted: true,
+            mode: 'local-fallback',
+            reason: 'ORCHESTRATOR_SESSIONS_SPAWN_URL not configured; accepting spawn in local fallback mode'
+          };
+          await updateRun(run.id, 'spawned', {
+            spawn_response: JSON.stringify(fallbackResponse),
+            complete: true
+          });
+          return { ok: true, responseStatus: 202, mode: 'local-fallback' };
+        }
+
         await updateRun(run.id, 'spawn_queued_no_endpoint', {
           spawn_response: JSON.stringify({ accepted: false, reason: 'ORCHESTRATOR_SESSIONS_SPAWN_URL not configured' })
         });
