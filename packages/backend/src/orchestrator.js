@@ -499,6 +499,25 @@ function createOrchestratorService({ dbAdapter, fastify, param, broadcast, dispa
     if (taskRunLocks.has(lockKey)) {
       return { action: 'review_skipped_locked' };
     }
+
+    // Loop protection: check if task has bounced too many times
+    const tags = parseTags(task.tags, dbAdapter.isSQLite());
+    const bounceTag = tags.find(t => String(t).startsWith('review-bounce:'));
+    const bounceCount = bounceTag ? parseInt(bounceTag.split(':')[1], 10) || 0 : 0;
+    const maxBounces = parseIntEnv('ORCHESTRATOR_MAX_REVIEW_BOUNCES', 3);
+
+    if (bounceCount >= maxBounces) {
+      // Skip this task - it needs manual intervention
+      if (!tags.includes('needs-manual-review')) {
+        const updatedTags = [...tags.filter(t => !String(t).startsWith('review-bounce:')), 'needs-manual-review'];
+        const tagsValue = dbAdapter.isSQLite() ? JSON.stringify(updatedTags) : updatedTags;
+        const nowFn = dbAdapter.isSQLite() ? "datetime('now')" : 'NOW()';
+        await dbAdapter.query(`UPDATE tasks SET tags = ${param(1)}, updated_at = ${nowFn} WHERE id = ${param(2)}`, [tagsValue, task.id]);
+        await addTaskComment(task.id, `⚠️ [LOOP-PROTECTION] Task has bounced from review ${bounceCount} times. Marked for manual intervention. Will not be auto-processed until resolved.`, config.orchestratorAgentId);
+      }
+      return { action: 'review_skipped_max_bounces', bounceCount };
+    }
+
     taskRunLocks.set(lockKey, now + config.lockTtlMs);
 
     try {
@@ -563,17 +582,25 @@ function createOrchestratorService({ dbAdapter, fastify, param, broadcast, dispa
         dispatchWebhook('task-updated', gate.bouncedTask);
       }
 
+      // Increment bounce counter to prevent infinite loops
+      const newBounceCount = bounceCount + 1;
+      const updatedTags = [...tags.filter(t => !String(t).startsWith('review-bounce:')), `review-bounce:${newBounceCount}`];
+      const tagsValue = dbAdapter.isSQLite() ? JSON.stringify(updatedTags) : updatedTags;
+      const nowFn = dbAdapter.isSQLite() ? "datetime('now')" : 'NOW()';
+      await dbAdapter.query(`UPDATE tasks SET tags = ${param(1)}, updated_at = ${nowFn} WHERE id = ${param(2)}`, [tagsValue, task.id]);
+
       const reassignedMsg = reassignedAgent
         ? ` Reassigned to ${reassignedAgent.name} (agent #${reassignedAgent.id}).`
         : '';
       await postFeed(
         config.orchestratorAgentId,
-        `❌ [M6] Review task #${task.id} failed gate checks and was moved back to TODO.${reassignedMsg}`
+        `❌ [M6] Review task #${task.id} failed gate checks (bounce #${newBounceCount}) and was moved back to TODO.${reassignedMsg}`
       );
 
       return {
         action: 'review_failed_bounced',
-        reassigned_agent_id: reassignedAgent ? reassignedAgent.id : null
+        reassigned_agent_id: reassignedAgent ? reassignedAgent.id : null,
+        bounceCount: newBounceCount
       };
     } finally {
       taskRunLocks.delete(lockKey);
