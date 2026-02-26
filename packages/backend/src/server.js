@@ -2863,6 +2863,33 @@ fastify.post('/api/orchestrator/simulate/e2e', {
   return orchestrator.simulateE2EFlow({ taskTitle });
 });
 
+// ============ ADMIN ENDPOINTS ============
+
+fastify.delete('/api/admin/comments', {
+  schema: {
+    description: 'Delete all task comments (admin cleanup)',
+    tags: ['Admin'],
+    headers: {
+      type: 'object',
+      properties: { 'x-api-key': { type: 'string' } }
+    },
+    response: {
+      200: {
+        type: 'object',
+        properties: {
+          success: { type: 'boolean' },
+          deleted: { type: 'number' }
+        }
+      }
+    }
+  }
+}, async () => {
+  const countResult = await dbAdapter.query('SELECT COUNT(*) as cnt FROM task_comments');
+  const count = Number(countResult.rows[0]?.cnt || 0);
+  await dbAdapter.query('DELETE FROM task_comments');
+  return { success: true, deleted: count };
+});
+
 }); // End of routes plugin
 
 // ============ AUTO-SEED ============
