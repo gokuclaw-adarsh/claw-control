@@ -2890,6 +2890,31 @@ fastify.delete('/api/admin/comments', {
   return { success: true, deleted: count };
 });
 
+fastify.delete('/api/admin/messages', {
+  schema: {
+    description: 'Delete all feed messages (admin cleanup)',
+    tags: ['Admin'],
+    headers: {
+      type: 'object',
+      properties: { 'x-api-key': { type: 'string' } }
+    },
+    response: {
+      200: {
+        type: 'object',
+        properties: {
+          success: { type: 'boolean' },
+          deleted: { type: 'number' }
+        }
+      }
+    }
+  }
+}, async () => {
+  const countResult = await dbAdapter.query('SELECT COUNT(*) as cnt FROM agent_messages');
+  const count = Number(countResult.rows[0]?.cnt || 0);
+  await dbAdapter.query('DELETE FROM agent_messages');
+  return { success: true, deleted: count };
+});
+
 }); // End of routes plugin
 
 // ============ AUTO-SEED ============
