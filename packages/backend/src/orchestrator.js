@@ -54,7 +54,7 @@ function computeDedupeKey(body, headerKey) {
   return hash.digest('hex');
 }
 
-function createOrchestratorService({ dbAdapter, fastify, param, broadcast, dispatchWebhook }) {
+function createOrchestratorService({ dbAdapter, fastify, param, broadcast, dispatchWebhook, onPatrolCycle }) {
   const config = {
     enabled: parseBoolEnv('ORCHESTRATOR_ENABLED', true),
     heartbeatEnabled: parseBoolEnv('ORCHESTRATOR_HEARTBEAT_ENABLED', true),
@@ -642,6 +642,25 @@ function createOrchestratorService({ dbAdapter, fastify, param, broadcast, dispa
     );
 
     fastify.log.info({ summary }, '[orchestrator] Heartbeat patrol complete');
+
+    // Report patrol cycle to observability layer
+    if (typeof onPatrolCycle === 'function') {
+      try {
+        await onPatrolCycle({
+          lastRunAt: new Date().toISOString(),
+          tasksScannedCount: summary.scanned,
+          backlogPendingCount: summary.backlog_prompted,
+          todoAutoPickedCount: summary.todo_claimed_spawned_review,
+          staleTaskAlerts: summary.stale_remediated,
+          reviewCompleted: summary.review_completed,
+          reviewBouncedCount: summary.review_failed_bounced,
+          decisions: []
+        });
+      } catch (err) {
+        fastify.log.error({ err }, '[orchestrator] onPatrolCycle callback failed');
+      }
+    }
+
     return { success: true, ...summary };
   }
 
