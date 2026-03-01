@@ -375,6 +375,9 @@ fastify.post('/api/tasks', {
         status: { type: 'string', enum: ['backlog', 'todo', 'in_progress', 'review', 'completed'], default: 'backlog' },
         tags: { type: 'array', items: { type: 'string' }, default: [] },
         agent_id: { type: 'integer', description: 'Assigned agent ID' },
+        requires_approval: { type: 'boolean', default: false, description: 'Whether task requires human approval before starting' },
+        attachments: { type: 'array', items: { type: 'object' }, default: [], description: 'Task attachments' },
+        context: { type: 'string', description: 'Task context/notes' },
         spawn_session_id: { type: 'string' },
         spawn_run_id: { type: 'string' },
         current_step: { type: 'string' },
@@ -395,6 +398,9 @@ fastify.post('/api/tasks', {
     status = 'backlog',
     tags = [],
     agent_id,
+    requires_approval = false,
+    attachments = [],
+    context,
     spawn_session_id,
     spawn_run_id,
     current_step,
@@ -408,14 +414,18 @@ fastify.post('/api/tasks', {
   }
 
   const tagsValue = dbAdapter.isSQLite() ? JSON.stringify(tags) : tags;
+  const attachmentsValue = dbAdapter.isSQLite() ? JSON.stringify(attachments) : attachments;
 
   const { rows } = await dbAdapter.query(
     `INSERT INTO tasks (
       title,
       description,
+      context,
       status,
       tags,
       agent_id,
+      requires_approval,
+      attachments,
       spawn_session_id,
       spawn_run_id,
       current_step,
@@ -425,15 +435,19 @@ fastify.post('/api/tasks', {
     )
      VALUES (
       ${param(1)}, ${param(2)}, ${param(3)}, ${param(4)}, ${param(5)},
-      ${param(6)}, ${param(7)}, ${param(8)}, ${param(9)}, ${param(10)}, ${param(11)}
+      ${param(6)}, ${param(7)}, ${param(8)}, ${param(9)}, ${param(10)},
+      ${param(11)}, ${param(12)}, ${param(13)}, ${param(14)}
     )
      RETURNING *`,
     [
       title,
       description || null,
+      context || null,
       status,
       tagsValue,
       agent_id || null,
+      requires_approval ?? false,
+      attachmentsValue,
       spawn_session_id || null,
       spawn_run_id || null,
       current_step || null,
@@ -480,6 +494,7 @@ fastify.put('/api/tasks/:id', {
         deliverable_type: { type: 'string', enum: ['document', 'spec', 'code', 'review', 'design', 'other'], description: 'Type of deliverable' },
         deliverable_content: { type: 'string', description: 'Deliverable content (URL, text, etc.)' },
         requires_approval: { type: 'boolean', description: 'Whether task requires human approval before starting' },
+        attachments: { type: 'array', items: { type: 'object' }, description: 'Task attachments' },
         spawn_session_id: { type: 'string' },
         spawn_run_id: { type: 'string' },
         current_step: { type: 'string' },
@@ -505,6 +520,7 @@ fastify.put('/api/tasks/:id', {
     deliverable_type,
     deliverable_content,
     requires_approval,
+    attachments,
     spawn_session_id,
     spawn_run_id,
     current_step,
@@ -584,6 +600,7 @@ fastify.put('/api/tasks/:id', {
   }
 
   const tagsValue = tags !== undefined && dbAdapter.isSQLite() ? JSON.stringify(tags) : tags;
+  const attachmentsValue = attachments !== undefined && dbAdapter.isSQLite() ? JSON.stringify(attachments) : attachments;
   const nowFn = dbAdapter.isSQLite() ? "datetime('now')" : 'NOW()';
 
   const { rows } = await dbAdapter.query(
@@ -597,14 +614,15 @@ fastify.put('/api/tasks/:id', {
          deliverable_type = COALESCE(${param(7)}, deliverable_type),
          deliverable_content = COALESCE(${param(8)}, deliverable_content),
          requires_approval = COALESCE(${param(9)}, requires_approval),
-         spawn_session_id = COALESCE(${param(10)}, spawn_session_id),
-         spawn_run_id = COALESCE(${param(11)}, spawn_run_id),
-         current_step = COALESCE(${param(12)}, current_step),
-         last_heartbeat_decision = COALESCE(${param(13)}, last_heartbeat_decision),
-         failure_reason = COALESCE(${param(14)}, failure_reason),
-         retry_count = COALESCE(${param(15)}, retry_count),
+         attachments = COALESCE(${param(10)}, attachments),
+         spawn_session_id = COALESCE(${param(11)}, spawn_session_id),
+         spawn_run_id = COALESCE(${param(12)}, spawn_run_id),
+         current_step = COALESCE(${param(13)}, current_step),
+         last_heartbeat_decision = COALESCE(${param(14)}, last_heartbeat_decision),
+         failure_reason = COALESCE(${param(15)}, failure_reason),
+         retry_count = COALESCE(${param(16)}, retry_count),
          updated_at = ${nowFn}
-     WHERE id = ${param(16)}
+     WHERE id = ${param(17)}
      RETURNING *`,
     [
       title,
@@ -616,6 +634,7 @@ fastify.put('/api/tasks/:id', {
       deliverable_type,
       deliverable_content,
       requires_approval,
+      attachmentsValue,
       spawn_session_id,
       spawn_run_id,
       current_step,
@@ -777,13 +796,25 @@ fastify.get('/api/tasks/:id', {
           title: { type: 'string' },
           description: { type: 'string', nullable: true },
           context: { type: 'string', nullable: true },
-          attachments: { type: 'array', items: { type: 'string' } },
+          attachments: { type: 'array', items: { type: 'object' } },
           status: { type: 'string' },
           agent_id: { type: 'integer', nullable: true },
           tags: { type: 'array', items: { type: 'string' } },
+          requires_approval: { type: 'boolean' },
+          approved_at: { type: 'string', format: 'date-time', nullable: true },
+          approved_by: { type: 'string', nullable: true },
+          spawn_session_id: { type: 'string', nullable: true },
+          spawn_run_id: { type: 'string', nullable: true },
+          current_step: { type: 'string', nullable: true },
+          last_heartbeat_decision: { type: 'string', nullable: true },
+          failure_reason: { type: 'string', nullable: true },
+          retry_count: { type: 'integer' },
           created_at: { type: 'string', format: 'date-time' },
           updated_at: { type: 'string', format: 'date-time' },
-          comments_count: { type: 'integer', description: 'Number of comments on this task' }
+          comments_count: { type: 'integer', description: 'Number of comments on this task' },
+          assignees_count: { type: 'integer' },
+          subtask_count: { type: 'integer' },
+          subtask_done_count: { type: 'integer' }
         }
       },
       404: { $ref: 'Error#' }
