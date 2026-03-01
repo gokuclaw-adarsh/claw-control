@@ -372,6 +372,7 @@ fastify.post('/api/tasks', {
       properties: {
         title: { type: 'string', description: 'Task title (required)' },
         description: { type: 'string', description: 'Task description' },
+        context: { type: 'string', description: 'Task context/notes' },
         status: { type: 'string', enum: ['backlog', 'todo', 'in_progress', 'review', 'completed'], default: 'backlog' },
         tags: { type: 'array', items: { type: 'string' }, default: [] },
         agent_id: { type: 'integer', description: 'Assigned agent ID' },
@@ -392,6 +393,7 @@ fastify.post('/api/tasks', {
   const {
     title,
     description,
+    context,
     status = 'backlog',
     tags = [],
     agent_id,
@@ -413,6 +415,7 @@ fastify.post('/api/tasks', {
     `INSERT INTO tasks (
       title,
       description,
+      context,
       status,
       tags,
       agent_id,
@@ -425,12 +428,13 @@ fastify.post('/api/tasks', {
     )
      VALUES (
       ${param(1)}, ${param(2)}, ${param(3)}, ${param(4)}, ${param(5)},
-      ${param(6)}, ${param(7)}, ${param(8)}, ${param(9)}, ${param(10)}, ${param(11)}
+      ${param(6)}, ${param(7)}, ${param(8)}, ${param(9)}, ${param(10)}, ${param(11)}, ${param(12)}
     )
      RETURNING *`,
     [
       title,
       description || null,
+      context || null,
       status,
       tagsValue,
       agent_id || null,
