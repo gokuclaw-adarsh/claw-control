@@ -409,44 +409,54 @@ fastify.post('/api/tasks', {
 
   const tagsValue = dbAdapter.isSQLite() ? JSON.stringify(tags) : tags;
 
-  const { rows } = await dbAdapter.query(
-    `INSERT INTO tasks (
-      title,
-      description,
-      status,
-      tags,
-      agent_id,
-      spawn_session_id,
-      spawn_run_id,
-      current_step,
-      last_heartbeat_decision,
-      failure_reason,
-      retry_count
-    )
-     VALUES (
-      ${param(1)}, ${param(2)}, ${param(3)}, ${param(4)}, ${param(5)},
-      ${param(6)}, ${param(7)}, ${param(8)}, ${param(9)}, ${param(10)}, ${param(11)}
-    )
-     RETURNING *`,
-    [
-      title,
-      description || null,
-      status,
-      tagsValue,
-      agent_id || null,
-      spawn_session_id || null,
-      spawn_run_id || null,
-      current_step || null,
-      last_heartbeat_decision || null,
-      failure_reason || null,
-      retry_count ?? 0
-    ]
-  );
+  try {
+    const { rows } = await dbAdapter.query(
+      `INSERT INTO tasks (
+        title,
+        description,
+        status,
+        tags,
+        agent_id,
+        spawn_session_id,
+        spawn_run_id,
+        current_step,
+        last_heartbeat_decision,
+        failure_reason,
+        retry_count
+      )
+       VALUES (
+        ${param(1)}, ${param(2)}, ${param(3)}, ${param(4)}, ${param(5)},
+        ${param(6)}, ${param(7)}, ${param(8)}, ${param(9)}, ${param(10)}, ${param(11)}
+      )
+       RETURNING *`,
+      [
+        title,
+        description || null,
+        status,
+        tagsValue,
+        agent_id || null,
+        spawn_session_id || null,
+        spawn_run_id || null,
+        current_step || null,
+        last_heartbeat_decision || null,
+        failure_reason || null,
+        retry_count ?? 0
+      ]
+    );
 
-  const task = rows[0];
-  broadcast('task-created', task);
-  dispatchWebhook('task-created', task);
-  return reply.status(201).send(task);
+    const task = rows[0];
+    broadcast('task-created', task);
+    dispatchWebhook('task-created', task);
+    return reply.status(201).send(task);
+  } catch (err) {
+    // Handle foreign key violations (e.g. invalid agent_id) with a friendly 400 (#11)
+    const code = err.code || err.errno || '';
+    const msg = err.message || '';
+    if (code === '23503' || msg.includes('foreign key') || msg.includes('FOREIGN KEY')) {
+      return reply.status(400).send({ error: 'Invalid reference: one or more provided IDs do not exist (e.g. agent_id).' });
+    }
+    throw err;
+  }
 });
 
 /**
@@ -835,6 +845,9 @@ fastify.get('/api/tasks/:id/comments', {
   }
 }, async (request, reply) => {
   const { id } = request.params;
+  // Return 404 for non-existent/deleted parent tasks instead of 200 [] (#12)
+  const { rows: taskExists } = await dbAdapter.query(`SELECT id FROM tasks WHERE id = ${param(1)}`, [id]);
+  if (taskExists.length === 0) return reply.status(404).send({ error: 'Task not found' });
 
   const { rows } = await dbAdapter.query(
     `SELECT tc.*, a.name as agent_name 
@@ -900,8 +913,9 @@ fastify.post('/api/tasks/:id/comments', {
     return reply.status(404).send({ error: 'Task not found' });
   }
 
-  // Determine agent_id - use provided one or default to 1 (system agent)
-  const finalAgentId = agent_id || 1;
+  // Determine agent_id - use provided value only; do NOT default to an agent
+  // (defaulting to agent 1 / Victoria caused comment impersonation — issue #10)
+  const finalAgentId = agent_id ?? null;
 
   const { rows } = await dbAdapter.query(
     `INSERT INTO task_comments (task_id, agent_id, content) 
@@ -910,15 +924,16 @@ fastify.post('/api/tasks/:id/comments', {
     [id, finalAgentId, content.trim()]
   );
 
-  // Get agent name for response
-  const { rows: agentRows } = await dbAdapter.query(
-    `SELECT name FROM agents WHERE id = ${param(1)}`,
-    [finalAgentId]
-  );
-
+  // Get agent name for response (null-safe: skip lookup if no agent_id)
   const comment = rows[0];
-  if (agentRows.length > 0) {
-    comment.agent_name = agentRows[0].name;
+  if (finalAgentId) {
+    const { rows: agentRows } = await dbAdapter.query(
+      `SELECT name FROM agents WHERE id = ${param(1)}`,
+      [finalAgentId]
+    );
+    if (agentRows.length > 0) {
+      comment.agent_name = agentRows[0].name;
+    }
   }
 
   broadcast('comment-created', { task_id: parseInt(id), comment });
@@ -1309,6 +1324,10 @@ fastify.get('/api/tasks/:id/subtasks', {
   }
 }, async (request, reply) => {
   const { id } = request.params;
+  // Return 404 for non-existent/deleted parent tasks instead of 200 [] (#12)
+  const { rows: taskExists } = await dbAdapter.query(`SELECT id FROM tasks WHERE id = ${param(1)}`, [id]);
+  if (taskExists.length === 0) return reply.status(404).send({ error: 'Task not found' });
+
   const { rows } = await dbAdapter.query(
     `SELECT * FROM subtasks WHERE task_id = ${param(1)} ORDER BY position ASC, id ASC`,
     [id]
