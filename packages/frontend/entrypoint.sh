@@ -15,6 +15,13 @@ elif [ -n "$API_URL" ]; then
   echo "  API_URL: \"$API_URL\"," >> $CONFIG_FILE
 fi
 
+# API Key - required for authenticated write operations (POST/PUT/DELETE)
+if [ -n "$VITE_API_KEY" ]; then
+  echo "  API_KEY: \"$VITE_API_KEY\"," >> $CONFIG_FILE
+elif [ -n "$API_KEY" ]; then
+  echo "  API_KEY: \"$API_KEY\"," >> $CONFIG_FILE
+fi
+
 echo "};" >> $CONFIG_FILE
 
 echo "Generated config.js:"

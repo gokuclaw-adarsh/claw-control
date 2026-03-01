@@ -2,4 +2,5 @@
 // For local development, API calls default to same-origin (empty string)
 window.__CLAW_CONFIG__ = {
   // API_URL: "http://localhost:3001",
+  // API_KEY: "",  // Set via VITE_API_KEY or API_KEY env var at container startup
 };

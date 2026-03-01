@@ -19,10 +19,16 @@ import type { Agent, Task, Message, KanbanData, TaskStatus, Comment, TaskAssigne
  */
 declare global {
   interface Window {
-    __CLAW_CONFIG__?: { API_URL?: string };
+    __CLAW_CONFIG__?: { API_URL?: string; API_KEY?: string };
   }
 }
 const API_BASE = window.__CLAW_CONFIG__?.API_URL || import.meta.env.VITE_API_URL || '';
+const API_KEY = window.__CLAW_CONFIG__?.API_KEY || import.meta.env.VITE_API_KEY || '';
+
+/** Returns auth headers if an API key is configured. */
+function authHeaders(): Record<string, string> {
+  return API_KEY ? { 'x-api-key': API_KEY } : {};
+}
 
 /**
  * Transforms raw API task data to typed Task object.
@@ -171,6 +177,7 @@ export async function createTaskComment(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...authHeaders(),
       },
       body: JSON.stringify(body),
     });
@@ -193,7 +200,7 @@ export async function updateTaskContext(taskId: string, context: string): Promis
   try {
     const res = await fetch(`${API_BASE}/api/tasks/${taskId}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ context }),
     });
     if (!res.ok) return null;
@@ -211,7 +218,7 @@ export async function approveTask(taskId: string, approvedBy: string): Promise<T
   try {
     const res = await fetch(`${API_BASE}/api/tasks/${taskId}/approve`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ approved_by: approvedBy }),
     });
     if (!res.ok) return null;
@@ -229,7 +236,7 @@ export async function updateTaskApproval(taskId: string, requiresApproval: boole
   try {
     const res = await fetch(`${API_BASE}/api/tasks/${taskId}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ requires_approval: requiresApproval }),
     });
     if (!res.ok) return null;
@@ -255,7 +262,7 @@ export async function updateTaskDeliverable(
   try {
     const res = await fetch(`${API_BASE}/api/tasks/${taskId}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ deliverable_type: deliverableType, deliverable_content: deliverableContent }),
     });
     if (!res.ok) return null;
@@ -296,7 +303,7 @@ export async function addTaskAssignee(taskId: string, agentId: number, role = 'c
   try {
     const res = await fetch(`${API_BASE}/api/tasks/${taskId}/assignees`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ agent_id: agentId, role }),
     });
     if (!res.ok) return null;
@@ -319,7 +326,7 @@ export async function addTaskAssignee(taskId: string, agentId: number, role = 'c
  */
 export async function removeTaskAssignee(taskId: string, agentId: string): Promise<boolean> {
   try {
-    const res = await fetch(`${API_BASE}/api/tasks/${taskId}/assignees/${agentId}`, { method: 'DELETE' });
+    const res = await fetch(`${API_BASE}/api/tasks/${taskId}/assignees/${agentId}`, { method: 'DELETE', headers: authHeaders() });
     return res.ok;
   } catch {
     return false;
@@ -344,7 +351,7 @@ export async function fetchSubtasks(taskId: string): Promise<Subtask[]> {
 export async function createSubtask(taskId: string, title: string): Promise<Subtask | null> {
   try {
     const res = await fetch(`${API_BASE}/api/tasks/${taskId}/subtasks`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ title }),
     });
     if (!res.ok) return null;
@@ -358,7 +365,7 @@ export async function createSubtask(taskId: string, title: string): Promise<Subt
 export async function updateSubtask(taskId: string, subtaskId: string, updates: Partial<{ title: string; status: string }>): Promise<Subtask | null> {
   try {
     const res = await fetch(`${API_BASE}/api/tasks/${taskId}/subtasks/${subtaskId}`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      method: 'PUT', headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify(updates),
     });
     if (!res.ok) return null;
@@ -371,7 +378,7 @@ export async function updateSubtask(taskId: string, subtaskId: string, updates: 
 
 export async function deleteSubtask(taskId: string, subtaskId: string): Promise<boolean> {
   try {
-    const res = await fetch(`${API_BASE}/api/tasks/${taskId}/subtasks/${subtaskId}`, { method: 'DELETE' });
+    const res = await fetch(`${API_BASE}/api/tasks/${taskId}/subtasks/${subtaskId}`, { method: 'DELETE', headers: authHeaders() });
     return res.ok;
   } catch { return false; }
 }
@@ -527,7 +534,7 @@ export function useTasks() {
     try {
       await fetch(`${API_BASE}/api/tasks/${taskId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ status: newStatus }),
       });
     } catch {
