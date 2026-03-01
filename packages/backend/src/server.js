@@ -260,6 +260,7 @@ fastify.register(async function routes(fastify) {
  * @returns {Array<object>} Array of task objects
  */
 fastify.get('/api/tasks', {
+  ...withAuth,
   schema: {
     description: 'Retrieve all tasks with optional filters and pagination',
     tags: ['Tasks'],
@@ -760,6 +761,7 @@ fastify.delete('/api/tasks/:id', {
  * @returns {object} Task object with comments_count
  */
 fastify.get('/api/tasks/:id', {
+  ...withAuth,
   schema: {
     description: 'Retrieve a single task by ID with comments count',
     tags: ['Tasks'],
@@ -817,6 +819,7 @@ fastify.get('/api/tasks/:id', {
  * @returns {Array<object>} Array of comment objects
  */
 fastify.get('/api/tasks/:id/comments', {
+  ...withAuth,
   schema: {
     description: 'Retrieve comments for a task',
     tags: ['Tasks'],
@@ -931,6 +934,7 @@ fastify.post('/api/tasks/:id/comments', {
  * GET /api/tasks/:id/assignees - List assignees for a task.
  */
 fastify.get('/api/tasks/:id/assignees', {
+  ...withAuth,
   schema: {
     description: 'List assignees for a task with agent details',
     tags: ['Tasks'],
@@ -1297,6 +1301,7 @@ fastify.post('/api/tasks/:id/complete', {
  * GET /api/tasks/:id/subtasks - List subtasks for a task.
  */
 fastify.get('/api/tasks/:id/subtasks', {
+  ...withAuth,
   schema: {
     description: 'List subtasks for a task',
     tags: ['Tasks'],
@@ -1455,6 +1460,7 @@ function validateAgentInput(data, isUpdate = false) {
  * GET /api/agents - List all agents
  */
 fastify.get('/api/agents', {
+  ...withAuth,
   schema: {
     description: 'List all agents',
     tags: ['Agents'],
@@ -1495,6 +1501,7 @@ fastify.get('/api/agents', {
  * GET /api/agents/:id - Get a single agent by ID
  */
 fastify.get('/api/agents/:id', {
+  ...withAuth,
   schema: {
     description: 'Get a single agent by ID',
     tags: ['Agents'],
@@ -1858,6 +1865,7 @@ fastify.put('/api/agents/:id/heartbeat', {
  * GET /api/agents/:id/next-task - Get highest-priority todo task for an agent.
  */
 fastify.get('/api/agents/:id/next-task', {
+  ...withAuth,
   schema: {
     description: 'Get the highest-priority todo task assigned to this agent (auto-pick patrol only considers todo; review/completed are excluded)',
     tags: ['Agents'],
@@ -1910,6 +1918,7 @@ fastify.get('/api/agents/:id/next-task', {
  * @returns {Array<object>} Array of message objects
  */
 fastify.get('/api/messages', {
+  ...withAuth,
   schema: {
     description: 'Retrieve agent messages with optional filters and pagination',
     tags: ['Messages'],
@@ -2052,6 +2061,7 @@ fastify.post('/api/messages', {
  * @returns {Array<object>} Array of message objects mentioning this agent
  */
 fastify.get('/api/messages/mentions/:agentId', {
+  ...withAuth,
   schema: {
     description: 'Retrieve messages that @mention a specific agent',
     tags: ['Messages'],
@@ -2117,6 +2127,7 @@ fastify.get('/api/messages/mentions/:agentId', {
  * @returns {object} Board data with columns grouped by status
  */
 fastify.get('/api/board', {
+  ...withAuth,
   schema: {
     description: 'Get tasks in Kanban board format grouped by status columns',
     tags: ['Board'],
