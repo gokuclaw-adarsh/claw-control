@@ -268,8 +268,10 @@ fastify.get('/api/tasks', {
       properties: {
         status: { type: 'string', enum: ['backlog', 'todo', 'in_progress', 'review', 'completed'] },
         agent_id: { type: 'integer' },
+        tags: { type: 'string', description: 'Comma-separated tag names to filter by (tasks must have ALL listed tags)' },
         limit: { type: 'integer', minimum: 1, maximum: 100, description: 'Maximum number of tasks to return' },
-        offset: { type: 'integer', minimum: 0, description: 'Number of tasks to skip' }
+        offset: { type: 'integer', minimum: 0, description: 'Number of tasks to skip (takes priority over page)' },
+        page: { type: 'integer', minimum: 1, description: 'Page number (1-based); converted to offset using limit' }
       }
     },
     response: {
@@ -280,7 +282,7 @@ fastify.get('/api/tasks', {
     }
   }
 }, async (request, reply) => {
-  const { status, agent_id, limit, offset } = request.query;
+  const { status, agent_id, tags, limit, offset, page } = request.query;
   let query = `SELECT t.*, 
     (SELECT COUNT(*) FROM task_assignees WHERE task_id = t.id) as assignees_count,
     (SELECT COUNT(*) FROM subtasks WHERE task_id = t.id) as subtask_count,
@@ -291,24 +293,43 @@ fastify.get('/api/tasks', {
 
   if (status) {
     params.push(status);
-    conditions.push(`status = ${param(params.length)}`);
+    conditions.push(`t.status = ${param(params.length)}`);
   }
   if (agent_id) {
-    params.push(agent_id);
-    conditions.push(`agent_id = ${param(params.length)}`);
+    params.push(parseInt(agent_id));
+    conditions.push(`t.agent_id = ${param(params.length)}`);
+  }
+  if (tags) {
+    // Filter by tags: support comma-separated list; task must have ALL specified tags
+    const tagList = tags.split(',').map(t => t.trim()).filter(Boolean);
+    if (tagList.length > 0) {
+      if (dbAdapter.isSQLite()) {
+        // SQLite: tags stored as JSON array text — check each tag with json_each
+        for (const tag of tagList) {
+          params.push(tag);
+          conditions.push(`EXISTS (SELECT 1 FROM json_each(t.tags) WHERE value = ${param(params.length)})`);
+        }
+      } else {
+        // PostgreSQL: tags is a TEXT[] column — use array contains operator
+        params.push(tagList);
+        conditions.push(`t.tags @> ${param(params.length)}`);
+      }
+    }
   }
 
   if (conditions.length > 0) {
     query += ' WHERE ' + conditions.join(' AND ');
   }
-  query += ' ORDER BY created_at DESC';
+  query += ' ORDER BY t.created_at DESC';
 
-  // Add pagination if limit is specified
+  // Add pagination: prefer explicit offset; fall back to page number conversion
   if (limit) {
-    params.push(limit);
+    params.push(parseInt(limit));
     query += ` LIMIT ${param(params.length)}`;
-    if (offset) {
-      params.push(offset);
+    // Support both offset and page parameters (offset takes priority)
+    const effectiveOffset = offset !== undefined ? parseInt(offset) : (page !== undefined ? (parseInt(page) - 1) * parseInt(limit) : undefined);
+    if (effectiveOffset !== undefined && effectiveOffset >= 0) {
+      params.push(effectiveOffset);
       query += ` OFFSET ${param(params.length)}`;
     }
   }
