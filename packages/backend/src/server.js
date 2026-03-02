@@ -449,35 +449,46 @@ fastify.post('/api/tasks', {
     },
     response: {
       201: {
-        allOf: [
-          { $ref: 'Task#' },
-          {
-            type: 'object',
-            properties: {
-              subtasks: {
-                type: 'array',
-                description: 'Auto-created subtasks (only present when template was specified)',
-                items: {
-                  type: 'object',
-                  properties: {
-                    id: { type: 'integer' },
-                    task_id: { type: 'integer' },
-                    title: { type: 'string' },
-                    status: { type: 'string' },
-                    agent_id: { type: 'integer', nullable: true },
-                    position: { type: 'integer' },
-                    created_at: { type: 'string' }
-                  }
-                }
-              },
-              subtask_creation_warning: {
-                type: 'string',
-                nullable: true,
-                description: 'Warning message if template subtask creation partially failed. The task was still created.'
+        type: 'object',
+        additionalProperties: true,
+        description: 'Created task. Includes subtasks[] array and optional subtask_creation_warning when template was specified.',
+        properties: {
+          id: { type: 'integer' },
+          title: { type: 'string' },
+          description: { type: 'string', nullable: true },
+          context: { type: 'string', nullable: true },
+          status: { type: 'string' },
+          agent_id: { type: 'integer', nullable: true },
+          tags: { type: 'array', items: { type: 'string' } },
+          spawn_session_id: { type: 'string', nullable: true },
+          spawn_run_id: { type: 'string', nullable: true },
+          current_step: { type: 'string', nullable: true },
+          failure_reason: { type: 'string', nullable: true },
+          retry_count: { type: 'integer' },
+          created_at: { type: 'string', format: 'date-time' },
+          updated_at: { type: 'string', format: 'date-time' },
+          subtasks: {
+            type: 'array',
+            description: 'Auto-created subtasks (only present when template was specified)',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'integer' },
+                task_id: { type: 'integer' },
+                title: { type: 'string' },
+                status: { type: 'string' },
+                agent_id: { type: 'integer', nullable: true },
+                position: { type: 'integer' },
+                created_at: { type: 'string' }
               }
             }
+          },
+          subtask_creation_warning: {
+            type: 'string',
+            nullable: true,
+            description: 'Warning if template subtask creation partially failed. Task was still created.'
           }
-        ]
+        }
       },
       400: { $ref: 'Error#' }
     }
