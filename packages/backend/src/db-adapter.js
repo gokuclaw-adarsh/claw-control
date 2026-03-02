@@ -219,6 +219,44 @@ function isSQLite() {
   return IS_SQLITE;
 }
 
+/**
+ * Begins a database transaction.
+ * For SQLite: calls db.exec('BEGIN') — safe alongside prepared statements.
+ * For PostgreSQL: issues BEGIN via pool query.
+ * @returns {Promise<void>}
+ */
+async function beginTransaction() {
+  if (IS_SQLITE) {
+    db.exec('BEGIN');
+  } else {
+    await db.query('BEGIN');
+  }
+}
+
+/**
+ * Commits the current database transaction.
+ * @returns {Promise<void>}
+ */
+async function commitTransaction() {
+  if (IS_SQLITE) {
+    db.exec('COMMIT');
+  } else {
+    await db.query('COMMIT');
+  }
+}
+
+/**
+ * Rolls back the current database transaction.
+ * @returns {Promise<void>}
+ */
+async function rollbackTransaction() {
+  if (IS_SQLITE) {
+    db.exec('ROLLBACK');
+  } else {
+    await db.query('ROLLBACK');
+  }
+}
+
 module.exports = {
   query,
   runMigration,
@@ -226,5 +264,8 @@ module.exports = {
   getDb,
   getDbType,
   isSQLite,
+  beginTransaction,
+  commitTransaction,
+  rollbackTransaction,
   pool: { query }
 };

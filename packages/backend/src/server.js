@@ -382,6 +382,10 @@ async function createTemplateSubtasks(taskId, template) {
   const definitions = TASK_TEMPLATES[template];
   const created = [];
 
+  // Begin a transaction so that either ALL subtasks are inserted or NONE are.
+  // SSE broadcasts are deferred until after COMMIT to avoid firing events for
+  // rows that might be rolled back on a mid-loop failure.
+  await dbAdapter.beginTransaction();
   try {
     for (const def of definitions) {
       const { rows } = await dbAdapter.query(
@@ -390,15 +394,27 @@ async function createTemplateSubtasks(taskId, template) {
          RETURNING *`,
         [taskId, def.title, 'todo', null, def.position]
       );
-      const subtask = rows[0];
-      created.push(subtask);
+      created.push(rows[0]);
+      // NOTE: broadcast deliberately omitted here — deferred to post-commit below
+    }
+    await dbAdapter.commitTransaction();
+
+    // Fire SSE events only after all INSERTs are durably committed
+    for (const subtask of created) {
       broadcast('subtask-created', { task_id: parseInt(taskId), subtask });
     }
+
     return { subtasks: created, warning: null };
   } catch (err) {
+    try {
+      await dbAdapter.rollbackTransaction();
+    } catch (rbErr) {
+      fastify.log.error(rbErr, 'Rollback failed during template subtask creation');
+    }
     fastify.log.error(err, `Template subtask creation failed for task ${taskId}`);
     return {
-      subtasks: created,
+      // Return empty array — transaction rolled back, no subtasks were committed
+      subtasks: [],
       warning: `Failed to create all template subtasks: ${err.message}`
     };
   }
