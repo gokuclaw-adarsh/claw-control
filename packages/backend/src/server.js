@@ -260,6 +260,7 @@ fastify.register(async function routes(fastify) {
  * @returns {Array<object>} Array of task objects
  */
 fastify.get('/api/tasks', {
+  ...withAuth,
   schema: {
     description: 'Retrieve all tasks with optional filters and pagination',
     tags: ['Tasks'],
@@ -268,8 +269,10 @@ fastify.get('/api/tasks', {
       properties: {
         status: { type: 'string', enum: ['backlog', 'todo', 'in_progress', 'review', 'completed'] },
         agent_id: { type: 'integer' },
+        tags: { type: 'string', description: 'Comma-separated tag names to filter by (tasks must have ALL listed tags)' },
         limit: { type: 'integer', minimum: 1, maximum: 100, description: 'Maximum number of tasks to return' },
-        offset: { type: 'integer', minimum: 0, description: 'Number of tasks to skip' }
+        offset: { type: 'integer', minimum: 0, description: 'Number of tasks to skip (takes priority over page)' },
+        page: { type: 'integer', minimum: 1, description: 'Page number (1-based); converted to offset using limit' }
       }
     },
     response: {
@@ -280,7 +283,7 @@ fastify.get('/api/tasks', {
     }
   }
 }, async (request, reply) => {
-  const { status, agent_id, limit, offset } = request.query;
+  const { status, agent_id, tags, limit, offset, page } = request.query;
   let query = `SELECT t.*, 
     (SELECT COUNT(*) FROM task_assignees WHERE task_id = t.id) as assignees_count,
     (SELECT COUNT(*) FROM subtasks WHERE task_id = t.id) as subtask_count,
@@ -291,24 +294,43 @@ fastify.get('/api/tasks', {
 
   if (status) {
     params.push(status);
-    conditions.push(`status = ${param(params.length)}`);
+    conditions.push(`t.status = ${param(params.length)}`);
   }
   if (agent_id) {
-    params.push(agent_id);
-    conditions.push(`agent_id = ${param(params.length)}`);
+    params.push(parseInt(agent_id));
+    conditions.push(`t.agent_id = ${param(params.length)}`);
+  }
+  if (tags) {
+    // Filter by tags: support comma-separated list; task must have ALL specified tags
+    const tagList = tags.split(',').map(t => t.trim()).filter(Boolean);
+    if (tagList.length > 0) {
+      if (dbAdapter.isSQLite()) {
+        // SQLite: tags stored as JSON array text — check each tag with json_each
+        for (const tag of tagList) {
+          params.push(tag);
+          conditions.push(`EXISTS (SELECT 1 FROM json_each(t.tags) WHERE value = ${param(params.length)})`);
+        }
+      } else {
+        // PostgreSQL: tags is a TEXT[] column — use array contains operator
+        params.push(tagList);
+        conditions.push(`t.tags @> ${param(params.length)}`);
+      }
+    }
   }
 
   if (conditions.length > 0) {
     query += ' WHERE ' + conditions.join(' AND ');
   }
-  query += ' ORDER BY created_at DESC';
+  query += ' ORDER BY t.created_at DESC';
 
-  // Add pagination if limit is specified
+  // Add pagination: prefer explicit offset; fall back to page number conversion
   if (limit) {
-    params.push(limit);
+    params.push(parseInt(limit));
     query += ` LIMIT ${param(params.length)}`;
-    if (offset) {
-      params.push(offset);
+    // Support both offset and page parameters (offset takes priority)
+    const effectiveOffset = offset !== undefined ? parseInt(offset) : (page !== undefined ? (parseInt(page) - 1) * parseInt(limit) : undefined);
+    if (effectiveOffset !== undefined && effectiveOffset >= 0) {
+      params.push(effectiveOffset);
       query += ` OFFSET ${param(params.length)}`;
     }
   }
@@ -372,6 +394,7 @@ fastify.post('/api/tasks', {
       properties: {
         title: { type: 'string', description: 'Task title (required)' },
         description: { type: 'string', description: 'Task description' },
+        context: { type: 'string', description: 'Task context/notes' },
         status: { type: 'string', enum: ['backlog', 'todo', 'in_progress', 'review', 'completed'], default: 'backlog' },
         tags: { type: 'array', items: { type: 'string' }, default: [] },
         agent_id: { type: 'integer', description: 'Assigned agent ID' },
@@ -392,6 +415,7 @@ fastify.post('/api/tasks', {
   const {
     title,
     description,
+    context,
     status = 'backlog',
     tags = [],
     agent_id,
@@ -413,6 +437,7 @@ fastify.post('/api/tasks', {
     `INSERT INTO tasks (
       title,
       description,
+      context,
       status,
       tags,
       agent_id,
@@ -425,12 +450,13 @@ fastify.post('/api/tasks', {
     )
      VALUES (
       ${param(1)}, ${param(2)}, ${param(3)}, ${param(4)}, ${param(5)},
-      ${param(6)}, ${param(7)}, ${param(8)}, ${param(9)}, ${param(10)}, ${param(11)}
+      ${param(6)}, ${param(7)}, ${param(8)}, ${param(9)}, ${param(10)}, ${param(11)}, ${param(12)}
     )
      RETURNING *`,
     [
       title,
       description || null,
+      context || null,
       status,
       tagsValue,
       agent_id || null,
@@ -760,6 +786,7 @@ fastify.delete('/api/tasks/:id', {
  * @returns {object} Task object with comments_count
  */
 fastify.get('/api/tasks/:id', {
+  ...withAuth,
   schema: {
     description: 'Retrieve a single task by ID with comments count',
     tags: ['Tasks'],
@@ -817,6 +844,7 @@ fastify.get('/api/tasks/:id', {
  * @returns {Array<object>} Array of comment objects
  */
 fastify.get('/api/tasks/:id/comments', {
+  ...withAuth,
   schema: {
     description: 'Retrieve comments for a task',
     tags: ['Tasks'],
@@ -931,6 +959,7 @@ fastify.post('/api/tasks/:id/comments', {
  * GET /api/tasks/:id/assignees - List assignees for a task.
  */
 fastify.get('/api/tasks/:id/assignees', {
+  ...withAuth,
   schema: {
     description: 'List assignees for a task with agent details',
     tags: ['Tasks'],
@@ -1297,6 +1326,7 @@ fastify.post('/api/tasks/:id/complete', {
  * GET /api/tasks/:id/subtasks - List subtasks for a task.
  */
 fastify.get('/api/tasks/:id/subtasks', {
+  ...withAuth,
   schema: {
     description: 'List subtasks for a task',
     tags: ['Tasks'],
@@ -1455,6 +1485,7 @@ function validateAgentInput(data, isUpdate = false) {
  * GET /api/agents - List all agents
  */
 fastify.get('/api/agents', {
+  ...withAuth,
   schema: {
     description: 'List all agents',
     tags: ['Agents'],
@@ -1495,6 +1526,7 @@ fastify.get('/api/agents', {
  * GET /api/agents/:id - Get a single agent by ID
  */
 fastify.get('/api/agents/:id', {
+  ...withAuth,
   schema: {
     description: 'Get a single agent by ID',
     tags: ['Agents'],
@@ -1858,6 +1890,7 @@ fastify.put('/api/agents/:id/heartbeat', {
  * GET /api/agents/:id/next-task - Get highest-priority todo task for an agent.
  */
 fastify.get('/api/agents/:id/next-task', {
+  ...withAuth,
   schema: {
     description: 'Get the highest-priority todo task assigned to this agent (auto-pick patrol only considers todo; review/completed are excluded)',
     tags: ['Agents'],
@@ -1910,6 +1943,7 @@ fastify.get('/api/agents/:id/next-task', {
  * @returns {Array<object>} Array of message objects
  */
 fastify.get('/api/messages', {
+  ...withAuth,
   schema: {
     description: 'Retrieve agent messages with optional filters and pagination',
     tags: ['Messages'],
@@ -2052,6 +2086,7 @@ fastify.post('/api/messages', {
  * @returns {Array<object>} Array of message objects mentioning this agent
  */
 fastify.get('/api/messages/mentions/:agentId', {
+  ...withAuth,
   schema: {
     description: 'Retrieve messages that @mention a specific agent',
     tags: ['Messages'],
@@ -2117,6 +2152,7 @@ fastify.get('/api/messages/mentions/:agentId', {
  * @returns {object} Board data with columns grouped by status
  */
 fastify.get('/api/board', {
+  ...withAuth,
   schema: {
     description: 'Get tasks in Kanban board format grouped by status columns',
     tags: ['Board'],
