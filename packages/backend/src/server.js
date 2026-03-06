@@ -398,6 +398,9 @@ fastify.post('/api/tasks', {
         status: { type: 'string', enum: ['backlog', 'todo', 'in_progress', 'review', 'completed'], default: 'backlog' },
         tags: { type: 'array', items: { type: 'string' }, default: [] },
         agent_id: { type: 'integer', description: 'Assigned agent ID' },
+        requires_approval: { type: 'boolean', default: false, description: 'Whether task requires human approval before starting' },
+        attachments: { type: 'array', items: { type: 'object' }, default: [], description: 'Task attachments' },
+        context: { type: 'string', description: 'Task context/notes' },
         spawn_session_id: { type: 'string' },
         spawn_run_id: { type: 'string' },
         current_step: { type: 'string' },
@@ -419,6 +422,9 @@ fastify.post('/api/tasks', {
     status = 'backlog',
     tags = [],
     agent_id,
+    requires_approval = false,
+    attachments = [],
+    context,
     spawn_session_id,
     spawn_run_id,
     current_step,
@@ -432,47 +438,63 @@ fastify.post('/api/tasks', {
   }
 
   const tagsValue = dbAdapter.isSQLite() ? JSON.stringify(tags) : tags;
+  const attachmentsValue = dbAdapter.isSQLite() ? JSON.stringify(attachments) : attachments;
 
-  const { rows } = await dbAdapter.query(
-    `INSERT INTO tasks (
-      title,
-      description,
-      context,
-      status,
-      tags,
-      agent_id,
-      spawn_session_id,
-      spawn_run_id,
-      current_step,
-      last_heartbeat_decision,
-      failure_reason,
-      retry_count
-    )
-     VALUES (
-      ${param(1)}, ${param(2)}, ${param(3)}, ${param(4)}, ${param(5)},
-      ${param(6)}, ${param(7)}, ${param(8)}, ${param(9)}, ${param(10)}, ${param(11)}, ${param(12)}
-    )
-     RETURNING *`,
-    [
-      title,
-      description || null,
-      context || null,
-      status,
-      tagsValue,
-      agent_id || null,
-      spawn_session_id || null,
-      spawn_run_id || null,
-      current_step || null,
-      last_heartbeat_decision || null,
-      failure_reason || null,
-      retry_count ?? 0
-    ]
-  );
+  try {
+    const { rows } = await dbAdapter.query(
+      `INSERT INTO tasks (
+        title,
+        description,
+        context,
+        status,
+        tags,
+        agent_id,
+        requires_approval,
+        attachments,
+        spawn_session_id,
+        spawn_run_id,
+        current_step,
+        last_heartbeat_decision,
+        failure_reason,
+        retry_count
+      )
+       VALUES (
+        ${param(1)}, ${param(2)}, ${param(3)}, ${param(4)}, ${param(5)},
+        ${param(6)}, ${param(7)}, ${param(8)}, ${param(9)}, ${param(10)},
+        ${param(11)}, ${param(12)}, ${param(13)}, ${param(14)}
+      )
+       RETURNING *`,
+      [
+        title,
+        description || null,
+        context || null,
+        status,
+        tagsValue,
+        agent_id || null,
+        requires_approval ?? false,
+        attachmentsValue,
+        spawn_session_id || null,
+        spawn_run_id || null,
+        current_step || null,
+        last_heartbeat_decision || null,
+        failure_reason || null,
+        retry_count ?? 0
+      ]
+    );
 
-  const task = rows[0];
-  broadcast('task-created', task);
-  dispatchWebhook('task-created', task);
-  return reply.status(201).send(task);
+    const task = rows[0];
+    broadcast('task-created', task);
+    dispatchWebhook('task-created', task);
+    return reply.status(201).send(task);
+  } catch (err) {
+    // Handle foreign key violations (e.g. invalid agent_id) with a friendly 400 (#11)
+    const code = err.code || err.errno || '';
+    const msg = err.message || '';
+    if (code === '23503' || msg.includes('foreign key') || msg.includes('FOREIGN KEY')) {
+      return reply.status(400).send({ error: 'Invalid reference: one or more provided IDs do not exist (e.g. agent_id).' });
+    }
+    throw err;
+  }
 });
 
 /**
@@ -506,6 +528,7 @@ fastify.put('/api/tasks/:id', {
         deliverable_type: { type: 'string', enum: ['document', 'spec', 'code', 'review', 'design', 'other'], description: 'Type of deliverable' },
         deliverable_content: { type: 'string', description: 'Deliverable content (URL, text, etc.)' },
         requires_approval: { type: 'boolean', description: 'Whether task requires human approval before starting' },
+        attachments: { type: 'array', items: { type: 'object' }, description: 'Task attachments' },
         spawn_session_id: { type: 'string' },
         spawn_run_id: { type: 'string' },
         current_step: { type: 'string' },
@@ -531,6 +554,7 @@ fastify.put('/api/tasks/:id', {
     deliverable_type,
     deliverable_content,
     requires_approval,
+    attachments,
     spawn_session_id,
     spawn_run_id,
     current_step,
@@ -610,6 +634,7 @@ fastify.put('/api/tasks/:id', {
   }
 
   const tagsValue = tags !== undefined && dbAdapter.isSQLite() ? JSON.stringify(tags) : tags;
+  const attachmentsValue = attachments !== undefined && dbAdapter.isSQLite() ? JSON.stringify(attachments) : attachments;
   const nowFn = dbAdapter.isSQLite() ? "datetime('now')" : 'NOW()';
 
   const { rows } = await dbAdapter.query(
@@ -623,14 +648,15 @@ fastify.put('/api/tasks/:id', {
          deliverable_type = COALESCE(${param(7)}, deliverable_type),
          deliverable_content = COALESCE(${param(8)}, deliverable_content),
          requires_approval = COALESCE(${param(9)}, requires_approval),
-         spawn_session_id = COALESCE(${param(10)}, spawn_session_id),
-         spawn_run_id = COALESCE(${param(11)}, spawn_run_id),
-         current_step = COALESCE(${param(12)}, current_step),
-         last_heartbeat_decision = COALESCE(${param(13)}, last_heartbeat_decision),
-         failure_reason = COALESCE(${param(14)}, failure_reason),
-         retry_count = COALESCE(${param(15)}, retry_count),
+         attachments = COALESCE(${param(10)}, attachments),
+         spawn_session_id = COALESCE(${param(11)}, spawn_session_id),
+         spawn_run_id = COALESCE(${param(12)}, spawn_run_id),
+         current_step = COALESCE(${param(13)}, current_step),
+         last_heartbeat_decision = COALESCE(${param(14)}, last_heartbeat_decision),
+         failure_reason = COALESCE(${param(15)}, failure_reason),
+         retry_count = COALESCE(${param(16)}, retry_count),
          updated_at = ${nowFn}
-     WHERE id = ${param(16)}
+     WHERE id = ${param(17)}
      RETURNING *`,
     [
       title,
@@ -642,6 +668,7 @@ fastify.put('/api/tasks/:id', {
       deliverable_type,
       deliverable_content,
       requires_approval,
+      attachmentsValue,
       spawn_session_id,
       spawn_run_id,
       current_step,
@@ -804,13 +831,25 @@ fastify.get('/api/tasks/:id', {
           title: { type: 'string' },
           description: { type: 'string', nullable: true },
           context: { type: 'string', nullable: true },
-          attachments: { type: 'array', items: { type: 'string' } },
+          attachments: { type: 'array', items: { type: 'object' } },
           status: { type: 'string' },
           agent_id: { type: 'integer', nullable: true },
           tags: { type: 'array', items: { type: 'string' } },
+          requires_approval: { type: 'boolean' },
+          approved_at: { type: 'string', format: 'date-time', nullable: true },
+          approved_by: { type: 'string', nullable: true },
+          spawn_session_id: { type: 'string', nullable: true },
+          spawn_run_id: { type: 'string', nullable: true },
+          current_step: { type: 'string', nullable: true },
+          last_heartbeat_decision: { type: 'string', nullable: true },
+          failure_reason: { type: 'string', nullable: true },
+          retry_count: { type: 'integer' },
           created_at: { type: 'string', format: 'date-time' },
           updated_at: { type: 'string', format: 'date-time' },
-          comments_count: { type: 'integer', description: 'Number of comments on this task' }
+          comments_count: { type: 'integer', description: 'Number of comments on this task' },
+          assignees_count: { type: 'integer' },
+          subtask_count: { type: 'integer' },
+          subtask_done_count: { type: 'integer' }
         }
       },
       404: { $ref: 'Error#' }
@@ -863,6 +902,9 @@ fastify.get('/api/tasks/:id/comments', {
   }
 }, async (request, reply) => {
   const { id } = request.params;
+  // Return 404 for non-existent/deleted parent tasks instead of 200 [] (#12)
+  const { rows: taskExists } = await dbAdapter.query(`SELECT id FROM tasks WHERE id = ${param(1)}`, [id]);
+  if (taskExists.length === 0) return reply.status(404).send({ error: 'Task not found' });
 
   const { rows } = await dbAdapter.query(
     `SELECT tc.*, a.name as agent_name 
@@ -928,8 +970,9 @@ fastify.post('/api/tasks/:id/comments', {
     return reply.status(404).send({ error: 'Task not found' });
   }
 
-  // Determine agent_id - use provided one or default to 1 (system agent)
-  const finalAgentId = agent_id || 1;
+  // Determine agent_id - use provided value only; do NOT default to an agent
+  // (defaulting to agent 1 / Victoria caused comment impersonation — issue #10)
+  const finalAgentId = agent_id ?? null;
 
   const { rows } = await dbAdapter.query(
     `INSERT INTO task_comments (task_id, agent_id, content) 
@@ -938,15 +981,16 @@ fastify.post('/api/tasks/:id/comments', {
     [id, finalAgentId, content.trim()]
   );
 
-  // Get agent name for response
-  const { rows: agentRows } = await dbAdapter.query(
-    `SELECT name FROM agents WHERE id = ${param(1)}`,
-    [finalAgentId]
-  );
-
+  // Get agent name for response (null-safe: skip lookup if no agent_id)
   const comment = rows[0];
-  if (agentRows.length > 0) {
-    comment.agent_name = agentRows[0].name;
+  if (finalAgentId) {
+    const { rows: agentRows } = await dbAdapter.query(
+      `SELECT name FROM agents WHERE id = ${param(1)}`,
+      [finalAgentId]
+    );
+    if (agentRows.length > 0) {
+      comment.agent_name = agentRows[0].name;
+    }
   }
 
   broadcast('comment-created', { task_id: parseInt(id), comment });
@@ -1339,6 +1383,10 @@ fastify.get('/api/tasks/:id/subtasks', {
   }
 }, async (request, reply) => {
   const { id } = request.params;
+  // Return 404 for non-existent/deleted parent tasks instead of 200 [] (#12)
+  const { rows: taskExists } = await dbAdapter.query(`SELECT id FROM tasks WHERE id = ${param(1)}`, [id]);
+  if (taskExists.length === 0) return reply.status(404).send({ error: 'Task not found' });
+
   const { rows } = await dbAdapter.query(
     `SELECT * FROM subtasks WHERE task_id = ${param(1)} ORDER BY position ASC, id ASC`,
     [id]
