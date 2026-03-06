@@ -373,6 +373,71 @@ fastify.get('/api/stats', {
 });
 
 /**
+ * Standard subtask definitions for task templates.
+ * These enforce the standard lifecycle steps for tasks created with a template.
+ */
+const TASK_TEMPLATES = {
+  full: [
+    { title: 'Execute', position: 0 },
+    { title: 'Completion Record', position: 1 },
+    { title: 'QA Review', position: 2 },
+    { title: 'KB/Doc Update', position: 3 },
+    { title: 'Follow-on Check', position: 4 }
+  ],
+  minimal: [
+    { title: 'Execute', position: 0 },
+    { title: 'Completion Record', position: 1 },
+    { title: 'Follow-on Check', position: 2 }
+  ]
+};
+
+/**
+ * Creates standard subtasks for a task based on the given template.
+ * Subtask creation failures do NOT roll back the task — the task is returned
+ * with a subtask_creation_warning field if subtasks could not be created.
+ *
+ * @param {number|string} taskId - The ID of the parent task
+ * @param {'full'|'minimal'} template - The template name
+ * @returns {Promise<{ subtasks: object[], warning: string|null }>}
+ */
+async function createTemplateSubtasks(taskId, template) {
+  const definitions = TASK_TEMPLATES[template];
+
+  try {
+    // Use withTransaction to ensure all subtask INSERTs share the same
+    // database connection (critical for PostgreSQL pool isolation).
+    // SSE broadcasts are deferred until after COMMIT to avoid firing
+    // events for rows that might be rolled back on a mid-loop failure.
+    const created = await dbAdapter.withTransaction(async (txQuery) => {
+      const subtasks = [];
+      for (const def of definitions) {
+        const { rows } = await txQuery(
+          `INSERT INTO subtasks (task_id, title, status, agent_id, position)
+           VALUES (${param(1)}, ${param(2)}, ${param(3)}, ${param(4)}, ${param(5)})
+           RETURNING *`,
+          [taskId, def.title, 'todo', null, def.position]
+        );
+        subtasks.push(rows[0]);
+      }
+      return subtasks;
+    });
+
+    // Fire SSE events only after all INSERTs are durably committed
+    for (const subtask of created) {
+      broadcast('subtask-created', { task_id: parseInt(taskId), subtask });
+    }
+
+    return { subtasks: created, warning: null };
+  } catch (err) {
+    fastify.log.error(err, `Template subtask creation failed for task ${taskId}`);
+    return {
+      subtasks: [],
+      warning: `Failed to create all template subtasks: ${err.message}`
+    };
+  }
+}
+
+/**
  * POST /api/tasks - Create a new task.
  * @param {object} request.body - Task data
  * @param {string} request.body.title - Task title (required)
@@ -380,12 +445,16 @@ fastify.get('/api/stats', {
  * @param {string} [request.body.status='backlog'] - Initial status
  * @param {string[]} [request.body.tags=[]] - Task tags
  * @param {number} [request.body.agent_id] - Assigned agent ID
- * @returns {object} Created task object
+ * @param {string} [request.body.template] - Optional template: 'full' or 'minimal'. When provided,
+ *   standard lifecycle subtasks are auto-created after task creation. 'full' creates 5 subtasks
+ *   (Execute, Completion Record, QA Review, KB/Doc Update, Follow-on Check); 'minimal' creates 3
+ *   (Execute, Completion Record, Follow-on Check). Omit or pass null for no auto-subtasks.
+ * @returns {object} Created task object (with subtasks array if template was used)
  */
 fastify.post('/api/tasks', {
   ...withAuth,
   schema: {
-    description: 'Create a new task',
+    description: 'Create a new task. Pass template="full" or template="minimal" to auto-create standard lifecycle subtasks.',
     tags: ['Tasks'],
     security: [{ apiKey: [] }],
     body: {
@@ -406,11 +475,58 @@ fastify.post('/api/tasks', {
         current_step: { type: 'string' },
         last_heartbeat_decision: { type: 'string' },
         failure_reason: { type: 'string' },
-        retry_count: { type: 'integer', minimum: 0 }
+        retry_count: { type: 'integer', minimum: 0 },
+        template: {
+          type: 'string',
+          nullable: true,
+          enum: ['full', 'minimal'],
+          description: 'Task template: "full" auto-creates 5 standard lifecycle subtasks (Execute, Completion Record, QA Review, KB/Doc Update, Follow-on Check); "minimal" creates 3 (Execute, Completion Record, Follow-on Check). Omit or null for no auto-subtasks.'
+        }
       }
     },
     response: {
-      201: { $ref: 'Task#' },
+      201: {
+        type: 'object',
+        additionalProperties: true,
+        description: 'Created task. Includes subtasks[] array and optional subtask_creation_warning when template was specified.',
+        properties: {
+          id: { type: 'integer' },
+          title: { type: 'string' },
+          description: { type: 'string', nullable: true },
+          context: { type: 'string', nullable: true },
+          status: { type: 'string' },
+          agent_id: { type: 'integer', nullable: true },
+          tags: { type: 'array', items: { type: 'string' } },
+          spawn_session_id: { type: 'string', nullable: true },
+          spawn_run_id: { type: 'string', nullable: true },
+          current_step: { type: 'string', nullable: true },
+          failure_reason: { type: 'string', nullable: true },
+          retry_count: { type: 'integer' },
+          created_at: { type: 'string', format: 'date-time' },
+          updated_at: { type: 'string', format: 'date-time' },
+          subtasks: {
+            type: 'array',
+            description: 'Auto-created subtasks (only present when template was specified)',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'integer' },
+                task_id: { type: 'integer' },
+                title: { type: 'string' },
+                status: { type: 'string' },
+                agent_id: { type: 'integer', nullable: true },
+                position: { type: 'integer' },
+                created_at: { type: 'string' }
+              }
+            }
+          },
+          subtask_creation_warning: {
+            type: 'string',
+            nullable: true,
+            description: 'Warning if template subtask creation partially failed. Task was still created.'
+          }
+        }
+      },
       400: { $ref: 'Error#' }
     }
   }
@@ -430,11 +546,19 @@ fastify.post('/api/tasks', {
     current_step,
     last_heartbeat_decision,
     failure_reason,
-    retry_count
+    retry_count,
+    template
   } = request.body;
   
   if (!title) {
     return reply.status(400).send({ error: 'Title is required' });
+  }
+
+  // Validate template value (Fastify enum validation covers this, but belt-and-suspenders)
+  if (template !== undefined && template !== null && !TASK_TEMPLATES[template]) {
+    return reply.status(400).send({
+      error: `Invalid template value. Accepted: 'full', 'minimal', null.`
+    });
   }
 
   const tagsValue = dbAdapter.isSQLite() ? JSON.stringify(tags) : tags;
@@ -485,6 +609,17 @@ fastify.post('/api/tasks', {
     const task = rows[0];
     broadcast('task-created', task);
     dispatchWebhook('task-created', task);
+
+    // Auto-create template subtasks if requested
+    if (template) {
+      const { subtasks, warning } = await createTemplateSubtasks(task.id, template);
+      const response = { ...task, subtasks };
+      if (warning) {
+        response.subtask_creation_warning = warning;
+      }
+      return reply.status(201).send(response);
+    }
+
     return reply.status(201).send(task);
   } catch (err) {
     // Handle foreign key violations (e.g. invalid agent_id) with a friendly 400 (#11)

@@ -219,6 +219,46 @@ function isSQLite() {
   return IS_SQLITE;
 }
 
+/**
+ * Begins a database transaction.
+ * For SQLite: calls db.exec('BEGIN') — safe alongside prepared statements.
+ * Runs a callback within a database transaction.
+ * For PostgreSQL: acquires a dedicated client to ensure all queries use the same connection.
+ * For SQLite: uses BEGIN/COMMIT/ROLLBACK on the single connection.
+ * @param {function(queryFn): Promise<T>} callback - Receives a query function bound to the transaction
+ * @returns {Promise<T>}
+ */
+async function withTransaction(callback) {
+  if (IS_SQLITE) {
+    db.exec('BEGIN');
+    try {
+      const result = await callback(query);
+      db.exec('COMMIT');
+      return result;
+    } catch (err) {
+      db.exec('ROLLBACK');
+      throw err;
+    }
+  } else {
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+      const txQuery = async (text, params) => {
+        const result = await client.query(text, params);
+        return { rows: result.rows };
+      };
+      const result = await callback(txQuery);
+      await client.query('COMMIT');
+      return result;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+}
+
 module.exports = {
   query,
   runMigration,
@@ -226,5 +266,6 @@ module.exports = {
   getDb,
   getDbType,
   isSQLite,
+  withTransaction,
   pool: { query }
 };
