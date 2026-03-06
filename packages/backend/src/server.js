@@ -540,7 +540,6 @@ fastify.post('/api/tasks', {
     agent_id,
     requires_approval = false,
     attachments = [],
-    context,
     spawn_session_id,
     spawn_run_id,
     current_step,
